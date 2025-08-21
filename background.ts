@@ -1,8 +1,9 @@
 // FICHIER: background.ts
 interface CorrectionRequest {
   word: string;
-  leftContext: string;
-  rightContext: string;
+  fullText: string;
+  sentence: string;
+  position: number;
   tabId: number;
   inputId: string;
 }
@@ -10,6 +11,17 @@ interface CorrectionRequest {
 interface CorrectionResponse {
   correctedWord: string;
   originalWord: string;
+  error?: string;
+}
+
+interface CompletionRequest {
+  partialWord: string;
+  fullText: string;
+  position: number;
+}
+
+interface CompletionResponse {
+  suggestions: string[];
   error?: string;
 }
 
@@ -25,14 +37,26 @@ const MODEL_NAME = 'gemma3n:e4b';
 let lastError: string | null = null;
 
 // Fonction pour appeler Ollama
-async function callOllama(word: string, leftContext: string, rightContext: string): Promise<string> {
-  const system = "Tu es un correcteur d'orthographe et grammaire en français. Corrige uniquement le mot fourni. Rends UNIQUEMENT le mot corrigé, sans guillemets, sans explications, ne change pas la casse inutilement.";
+async function callOllama(word: string, fullText: string, sentence: string, position: number): Promise<string> {
+  const system = `Tu es un correcteur orthographique et grammatical expert en français. 
+RÈGLES STRICTES:
+1. Retourne UNIQUEMENT le mot ou groupe de mots corrigé, SANS guillemets ni explications
+2. La correction doit être PROCHE de l'original (même racine, même champ lexical)
+3. Ne jamais remplacer par un mot complètement différent (ex: "tio" ne peut pas devenir "Alexandre")
+4. Respecte la casse originale sauf si c'est une erreur
+5. Tu peux corriger plusieurs mots adjacents si nécessaire pour la grammaire
+6. Privilégie les corrections minimales et logiques dans le contexte`;
   
-  const prompt = `Corrige uniquement le mot fourni dans son contexte en français.
-Contexte gauche: "${leftContext}"
-Mot: "${word}"
-Contexte droit: "${rightContext}"
-Réponds uniquement par le mot corrigé ou par le même mot si déjà correct.`;
+  const prompt = `Contexte complet du texte:
+"${fullText}"
+
+Phrase actuelle:
+"${sentence}"
+
+Mot ou expression à corriger (position ${position}):
+"${word}"
+
+Corrige UNIQUEMENT cette partie en respectant le sens et la proximité avec l'original.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
@@ -86,6 +110,54 @@ Réponds uniquement par le mot corrigé ou par le même mot si déjà correct.`;
       throw new Error('Ollama unreachable');
     }
     throw error;
+  }
+}
+
+// Fonction pour obtenir des suggestions d'autocomplétion
+async function getCompletions(partialWord: string, fullText: string, position: number): Promise<string[]> {
+  const system = `Tu es un assistant d'autocomplétion en français.
+RÈGLES:
+1. Propose 3 à 5 complétions possibles pour le mot commencé
+2. Retourne UNIQUEMENT une liste de mots séparés par des virgules
+3. Les suggestions doivent être pertinentes dans le contexte
+4. Priorise les mots courants et bien orthographiés
+5. Format: mot1, mot2, mot3`;
+  
+  const prompt = `Contexte: "${fullText}"
+Mot à compléter: "${partialWord}"
+Position: ${position}
+
+Propose des complétions pertinentes pour ce mot partiel.`;
+
+  try {
+    const response = await fetch(OLLAMA_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        system: system,
+        prompt: prompt,
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data: OllamaResponse = await response.json();
+    const suggestions = data.response.trim()
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.startsWith(partialWord))
+      .slice(0, 5);
+    
+    return suggestions;
+  } catch (error: any) {
+    console.error('Completion error:', error);
+    return [];
   }
 }
 
@@ -208,7 +280,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'correct-word') {
     const correctionRequest = request as CorrectionRequest & { type: string };
     
-    callOllama(correctionRequest.word, correctionRequest.leftContext, correctionRequest.rightContext)
+    callOllama(
+      correctionRequest.word, 
+      correctionRequest.fullText, 
+      correctionRequest.sentence, 
+      correctionRequest.position
+    )
       .then(correctedWord => {
         lastError = null;
         updateBadge(false);
@@ -243,6 +320,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     testConnection().then(result => {
       sendResponse(result);
     });
+    return true;
+  }
+  
+  if (request.type === 'get-completions') {
+    const completionRequest = request as CompletionRequest & { type: string };
+    
+    getCompletions(
+      completionRequest.partialWord,
+      completionRequest.fullText,
+      completionRequest.position
+    )
+      .then(suggestions => {
+        sendResponse({
+          suggestions,
+          error: undefined
+        } as CompletionResponse);
+      })
+      .catch(error => {
+        sendResponse({
+          suggestions: [],
+          error: error.message
+        } as CompletionResponse);
+      });
+    
     return true;
   }
   
