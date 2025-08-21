@@ -10,6 +10,10 @@ interface InputState {
   currentCompletions: string[];
   partialWord: string;
   partialWordStart: number;
+  pendingCorrection: AbortController | null;
+  lastSpacePosition: number;
+  correctionInProgress: boolean;
+  completionTimeout?: number;
 }
 
 // Map des états pour chaque input
@@ -223,25 +227,34 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
 }
 
 // Gérer la correction lors de l'espace
-async function handleSpacePress(state: InputState) {
+async function handleSpacePress(state: InputState, spacePosition: number) {
+  // Annuler toute correction en cours
+  if (state.pendingCorrection) {
+    state.pendingCorrection.abort();
+    state.pendingCorrection = null;
+  }
+  
   const input = state.input;
-  const caretPos = input.selectionStart;
-  
-  if (caretPos === null || caretPos !== input.selectionEnd) {
-    return;
-  }
-  
   const text = input.value;
-  const sentence = getCurrentSentence(text, caretPos);
   
-  // Trouver le mot précédent
-  const wordBounds = getWordBounds(text, caretPos - 1);
+  // Trouver le mot précédent l'espace
+  const wordBounds = getWordBounds(text, spacePosition - 1);
   
-  if (!wordBounds.word) {
+  if (!wordBounds.word || wordBounds.word.length < 2) {
     return;
   }
+  
+  // Marquer cette position d'espace et démarrer la correction
+  state.lastSpacePosition = spacePosition;
+  state.correctionInProgress = true;
+  
+  // Créer un AbortController pour pouvoir annuler cette correction
+  const abortController = new AbortController();
+  state.pendingCorrection = abortController;
   
   try {
+    const sentence = getCurrentSentence(text, spacePosition);
+    
     const response = await chrome.runtime.sendMessage({
       type: 'correct-word',
       word: wordBounds.word,
@@ -252,26 +265,43 @@ async function handleSpacePress(state: InputState) {
       inputId: input.id || 'unknown'
     });
     
+    // Vérifier si la correction a été annulée
+    if (abortController.signal.aborted) {
+      return;
+    }
+    
+    // Vérifier que l'utilisateur n'a pas continué à taper après l'espace
+    const currentCaretPos = input.selectionStart;
+    const currentText = input.value;
+    
+    // Si le texte a changé après l'espace ou si le curseur a bougé significativement, on annule
+    if (currentCaretPos && currentCaretPos > state.lastSpacePosition + 1) {
+      return;
+    }
+    
+    // Vérifier que le mot n'a pas déjà été modifié
+    const currentWordBounds = getWordBounds(currentText, wordBounds.start);
+    if (currentWordBounds.word !== wordBounds.word) {
+      return;
+    }
+    
     if (response.error) {
       showErrorTooltip(input, response.error);
       return;
     }
     
     if (response.correctedWord !== wordBounds.word) {
-      // Remplacer le mot ou groupe de mots
-      const correctedWords = response.correctedWord.split(' ');
-      const originalWords = wordBounds.word.split(' ');
-      
-      // Calculer la nouvelle position du texte
-      const newText = text.substring(0, wordBounds.start) + 
+      // Remplacer le mot
+      const newText = currentText.substring(0, wordBounds.start) + 
                      response.correctedWord + 
-                     text.substring(wordBounds.end);
+                     currentText.substring(wordBounds.end);
       
       input.value = newText;
       
-      // Repositionner le caret
+      // Repositionner le caret juste après l'espace
       const lengthDiff = response.correctedWord.length - wordBounds.word.length;
-      input.setSelectionRange(caretPos + lengthDiff, caretPos + lengthDiff);
+      const newCaretPos = state.lastSpacePosition + lengthDiff;
+      input.setSelectionRange(newCaretPos, newCaretPos);
       
       // Enregistrer la correction avec timestamp pour l'animation
       state.correctedWords.set(wordBounds.start, {
@@ -283,12 +313,25 @@ async function handleSpacePress(state: InputState) {
       updateOverlayContent(state);
     }
   } catch (error) {
-    console.error('Erreur lors de la correction:', error);
+    if (!abortController.signal.aborted) {
+      console.error('Erreur lors de la correction:', error);
+    }
+  } finally {
+    state.correctionInProgress = false;
+    if (state.pendingCorrection === abortController) {
+      state.pendingCorrection = null;
+    }
   }
 }
 
 // Gérer l'autocomplétion
 async function handleAutocompletion(state: InputState) {
+  // Ne pas faire d'autocomplétion si une correction est en cours
+  if (state.correctionInProgress || state.pendingCorrection) {
+    hideCompletionBox(state);
+    return;
+  }
+  
   const input = state.input;
   const caretPos = input.selectionStart;
   
@@ -300,7 +343,8 @@ async function handleAutocompletion(state: InputState) {
   const text = input.value;
   const wordBounds = getWordBounds(text, caretPos);
   
-  if (!wordBounds.word || wordBounds.word.length < 2) {
+  // Ne pas faire d'autocomplétion si on est juste après un espace
+  if (!wordBounds.word || wordBounds.word.length < 2 || caretPos === state.lastSpacePosition + 1) {
     hideCompletionBox(state);
     return;
   }
@@ -419,7 +463,10 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
     selectedCompletionIndex: 0,
     currentCompletions: [],
     partialWord: '',
-    partialWordStart: 0
+    partialWordStart: 0,
+    pendingCorrection: null,
+    lastSpacePosition: -1,
+    correctionInProgress: false
   };
   
   inputStates.set(input, state);
@@ -427,14 +474,37 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
   // Événement de saisie
   input.addEventListener('input', async (event) => {
     const newValue = input.value;
+    const oldValue = state.lastValue;
     const inputEvent = event as InputEvent;
+    const caretPos = input.selectionStart || 0;
+    
+    // Si on tape un caractère après un espace, annuler toute correction en cours
+    if (state.pendingCorrection && caretPos > state.lastSpacePosition) {
+      state.pendingCorrection.abort();
+      state.pendingCorrection = null;
+    }
     
     // Détecter si un espace a été ajouté
     if (inputEvent.data === ' ' && !state.isComposing) {
-      await handleSpacePress(state);
-    } else if (!state.isComposing) {
-      // Gérer l'autocomplétion
-      setTimeout(() => handleAutocompletion(state), 100);
+      // Vérifier que c'est bien un nouvel espace (pas un remplacement)
+      if (newValue.length > oldValue.length) {
+        await handleSpacePress(state, caretPos - 1);
+      }
+    } else if (!state.isComposing && inputEvent.data && inputEvent.data !== ' ') {
+      // Si on tape un caractère non-espace, annuler les corrections en cours
+      if (state.pendingCorrection) {
+        state.pendingCorrection.abort();
+        state.pendingCorrection = null;
+      }
+      
+      // Gérer l'autocomplétion seulement si on n'est pas en train de corriger
+      if (!state.correctionInProgress) {
+        // Débouncer l'autocomplétion
+        if (state.completionTimeout) {
+          clearTimeout(state.completionTimeout);
+        }
+        state.completionTimeout = setTimeout(() => handleAutocompletion(state), 150);
+      }
     }
     
     state.lastValue = newValue;
@@ -443,6 +513,12 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
   
   // Gérer les touches spéciales
   input.addEventListener('keydown', (event) => {
+    // Annuler la correction si on utilise Backspace ou Delete
+    if ((event.key === 'Backspace' || event.key === 'Delete') && state.pendingCorrection) {
+      state.pendingCorrection.abort();
+      state.pendingCorrection = null;
+    }
+    
     if (state.currentCompletions.length > 0) {
       if (event.key === 'Tab') {
         event.preventDefault();
