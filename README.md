@@ -1,9 +1,28 @@
 # Extension Chrome - Correcteur Français
 
-## Commande de build
+## Prérequis
+
+- Node.js et npm installés
+- Ollama installé avec le modèle `gemma3n:e4b`
+
+## Build
 
 ```bash
-bunx esbuild background.ts content.ts popup.ts --bundle --outdir=. --format=iife
+# Installation des dépendances (première fois seulement)
+npm install
+
+# Compilation de l'extension
+./build.sh
+
+# Ou directement avec esbuild
+npx esbuild background.ts content.ts popup.ts --bundle --outdir=. --format=iife
+```
+
+## Tests
+
+```bash
+# Lancer les tests de correction
+./run-tests.sh
 ```
 
 ## Installation
