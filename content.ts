@@ -139,36 +139,45 @@ function updateOverlayPosition(input: HTMLInputElement | HTMLTextAreaElement, ov
 function updateOverlayContent(state: InputState, showSuggestion: boolean = true) {
   const text = state.input.value;
   const caretPos = state.input.selectionStart || text.length;
-  const words = text.split(/(\s+)/);
   let html = '';
   let charIndex = 0;
   
-  for (const word of words) {
+  // Traiter le texte caractère par caractère pour insérer la suggestion au bon endroit
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    
+    // Vérifier si ce caractère fait partie d'un mot corrigé
     let hasCorrection = false;
     let correctionClass = '';
     
-    // Vérifier si ce mot a été corrigé
     for (const [pos, correction] of state.correctedWords) {
-      if (charIndex <= pos && pos < charIndex + word.length) {
+      if (i >= pos && i < pos + correction.originalWord.length) {
         hasCorrection = true;
-        // Ajouter une classe d'animation si c'est une nouvelle correction
         const isNew = Date.now() - (correction as any).timestamp < 1000;
         correctionClass = isNew ? 'correction-animate' : 'correction-highlight';
         break;
       }
     }
     
-    if (hasCorrection && word.trim() !== '') {
-      html += `<span class="${correctionClass}">${escapeHtml(word)}</span>`;
+    // Ajouter le caractère avec ou sans style
+    if (hasCorrection) {
+      // Gérer les mots corrigés en entier
+      const correctionEntry = Array.from(state.correctedWords.entries()).find(
+        ([pos, corr]) => i === pos
+      );
+      if (correctionEntry) {
+        const [_, corr] = correctionEntry;
+        html += `<span class="${correctionClass}">${escapeHtml(corr.word)}</span>`;
+        i += corr.originalWord.length - 1; // Sauter les caractères du mot original
+        continue;
+      }
     } else {
-      html += escapeHtml(word);
+      html += escapeHtml(char);
     }
-    
-    charIndex += word.length;
   }
   
   // Ajouter la suggestion fantôme si on est à la fin du texte
-  if (showSuggestion && state.currentSuggestion && caretPos === text.length && caretPos === state.suggestionStart) {
+  if (showSuggestion && state.currentSuggestion && caretPos === text.length) {
     html += `<span class="ghost-suggestion">${escapeHtml(state.currentSuggestion)}</span>`;
   }
   
@@ -180,6 +189,20 @@ function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Obtenir le préfixe commun entre deux chaînes
+function getCommonPrefix(str1: string, str2: string): string {
+  let prefix = '';
+  const minLength = Math.min(str1.length, str2.length);
+  for (let i = 0; i < minLength; i++) {
+    if (str1[i] === str2[i]) {
+      prefix += str1[i];
+    } else {
+      break;
+    }
+  }
+  return prefix;
 }
 
 // Afficher une infobulle d'erreur
@@ -366,8 +389,8 @@ async function handleAutocompletion(state: InputState) {
   const text = input.value;
   const wordBounds = getWordBounds(text, caretPos);
   
-  // Ne pas faire d'autocomplétion si on est juste après un espace ou si le mot est trop court
-  if (!wordBounds.word || wordBounds.word.length < 2 || caretPos === state.lastSpacePosition + 1) {
+  // Ne pas faire d'autocomplétion si on est juste après un espace
+  if (!wordBounds.word || wordBounds.word.length < 1 || caretPos === state.lastSpacePosition + 1) {
     hideSuggestion(state);
     return;
   }
@@ -381,9 +404,10 @@ async function handleAutocompletion(state: InputState) {
     });
     
     if (response.suggestions && response.suggestions.length > 0) {
-      // Prendre la première suggestion et enlever le début qui correspond au mot partiel
       const firstSuggestion = response.suggestions[0];
+      
       if (firstSuggestion.startsWith(wordBounds.word)) {
+        // Suggestion normale - afficher seulement la partie à ajouter
         const completion = firstSuggestion.substring(wordBounds.word.length);
         if (completion) {
           showSuggestion(state, completion, caretPos);
@@ -391,6 +415,21 @@ async function handleAutocompletion(state: InputState) {
           hideSuggestion(state);
         }
       } else {
+        // Correction potentielle - remplacer le mot entier
+        // Calculer ce qui doit être remplacé
+        const commonPrefix = getCommonPrefix(wordBounds.word, firstSuggestion);
+        if (commonPrefix.length > 0) {
+          // Afficher la partie à ajouter/remplacer après le préfixe commun
+          const toReplace = firstSuggestion.substring(commonPrefix.length);
+          if (toReplace) {
+            // Pour une correction, on doit indiquer qu'on remplace une partie du mot
+            state.suggestionStart = wordBounds.start + commonPrefix.length;
+            state.currentSuggestion = toReplace;
+            state.originalValue = text.substring(0, state.suggestionStart) + text.substring(caretPos);
+            updateOverlayContent(state);
+            return;
+          }
+        }
         hideSuggestion(state);
       }
     } else {
@@ -422,16 +461,30 @@ function acceptSuggestion(state: InputState) {
   if (!state.currentSuggestion) return;
   
   const input = state.input;
+  const currentText = input.value;
+  const caretPos = input.selectionStart || currentText.length;
   
-  // Ajouter la suggestion au texte
-  input.value = state.originalValue + state.currentSuggestion;
+  // Construire le nouveau texte
+  let newText: string;
+  let newCaretPos: number;
   
-  // Positionner le curseur à la fin
-  const newPos = input.value.length;
-  input.setSelectionRange(newPos, newPos);
+  if (state.suggestionStart < currentText.length) {
+    // Correction - remplacer une partie du texte
+    newText = currentText.substring(0, state.suggestionStart) + 
+              state.currentSuggestion + 
+              currentText.substring(caretPos);
+    newCaretPos = state.suggestionStart + state.currentSuggestion.length;
+  } else {
+    // Ajout simple à la fin
+    newText = currentText + state.currentSuggestion;
+    newCaretPos = newText.length;
+  }
+  
+  input.value = newText;
+  input.setSelectionRange(newCaretPos, newCaretPos);
   
   // Mettre à jour l'état
-  state.lastValue = input.value;
+  state.lastValue = newText;
   hideSuggestion(state);
 }
 
@@ -487,11 +540,11 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
       
       // Gérer l'autocomplétion seulement si on n'est pas en train de corriger
       if (!state.correctionInProgress) {
-        // Débouncer l'autocomplétion
+        // Débouncer l'autocomplétion avec un délai plus court
         if (state.completionTimeout) {
           clearTimeout(state.completionTimeout);
         }
-        state.completionTimeout = setTimeout(() => handleAutocompletion(state), 150);
+        state.completionTimeout = setTimeout(() => handleAutocompletion(state), 100);
       }
     } else if (inputEvent.inputType === 'deleteContentBackward' || inputEvent.inputType === 'deleteContentForward') {
       // Cacher la suggestion si on efface

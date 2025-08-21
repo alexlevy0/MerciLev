@@ -176,21 +176,35 @@ function analyzeDifferences(original: string, corrected: string): Array<{start: 
   return corrections;
 }
 
+// Obtenir le préfixe commun entre deux chaînes
+function getCommonPrefix(str1: string, str2: string): string {
+  let prefix = '';
+  const minLength = Math.min(str1.length, str2.length);
+  for (let i = 0; i < minLength; i++) {
+    if (str1[i] === str2[i]) {
+      prefix += str1[i];
+    } else {
+      break;
+    }
+  }
+  return prefix;
+}
+
 // Fonction pour obtenir des suggestions d'autocomplétion
 async function getCompletions(partialWord: string, fullText: string, position: number): Promise<string[]> {
   const system = `Tu es un assistant d'autocomplétion en français.
 RÈGLES:
-1. Propose 3 à 5 complétions possibles pour le mot commencé
-2. Retourne UNIQUEMENT une liste de mots séparés par des virgules
-3. Les suggestions doivent être pertinentes dans le contexte
-4. Priorise les mots courants et bien orthographiés
-5. Format: mot1, mot2, mot3`;
+1. Complète le mot ou la partie de mot fournie
+2. Si c'est une faute de frappe, propose la correction (ex: "hér" → "héros")
+3. Retourne 1 à 3 suggestions séparées par des virgules
+4. Les suggestions doivent commencer EXACTEMENT par "${partialWord}"
+5. Format: mot1, mot2, mot3
+6. Si le mot semble mal orthographié, propose d'abord la correction la plus probable`;
   
   const prompt = `Contexte: "${fullText}"
-Mot à compléter: "${partialWord}"
-Position: ${position}
+Partie à compléter: "${partialWord}"
 
-Propose des complétions pertinentes pour ce mot partiel.`;
+Complète ce mot en français. Si c'est une faute (ex: "hér" pour "héros"), propose la fin correcte.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
@@ -211,13 +225,28 @@ Propose des complétions pertinentes pour ce mot partiel.`;
     }
 
     const data: OllamaResponse = await response.json();
-    const suggestions = data.response.trim()
+    const rawSuggestions = data.response.trim()
       .split(',')
       .map(s => s.trim())
-      .filter(s => s.length > 0 && s.startsWith(partialWord))
-      .slice(0, 5);
+      .filter(s => s.length > 0);
     
-    return suggestions;
+    // Filtrer et formater les suggestions
+    const suggestions: string[] = [];
+    for (const suggestion of rawSuggestions) {
+      if (suggestion.startsWith(partialWord)) {
+        // Suggestion normale qui commence par le mot partiel
+        suggestions.push(suggestion);
+      } else if (suggestion.length > partialWord.length) {
+        // Peut-être une correction - vérifier si c'est proche
+        const commonPrefix = getCommonPrefix(partialWord, suggestion);
+        if (commonPrefix.length >= Math.max(1, partialWord.length - 2)) {
+          // Si la suggestion corrige une faute de frappe
+          suggestions.push(suggestion);
+        }
+      }
+    }
+    
+    return suggestions.slice(0, 3);
   } catch (error: any) {
     console.error('Completion error:', error);
     return [];
