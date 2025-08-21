@@ -2,30 +2,42 @@
 
 ## Prérequis
 
-- Node.js et npm installés
+- Node.js 22+ et npm installés
 - Ollama installé avec le modèle `gemma3n:e4b`
+
+## Installation
+
+```bash
+# Installation des dépendances
+npm install
+```
 
 ## Build
 
 ```bash
-# Installation des dépendances (première fois seulement)
-npm install
-
-# Compilation de l'extension
+# Compilation de l'extension Chrome (nécessaire car Chrome ne supporte pas TypeScript)
+npm run build
+# ou
 ./build.sh
-
-# Ou directement avec esbuild
-npx esbuild background.ts content.ts popup.ts --bundle --outdir=. --format=iife
 ```
 
 ## Tests
 
 ```bash
-# Lancer les tests de correction
+# Lancer tous les tests de correction
+npm test
+# ou
 ./run-tests.sh
+
+# Tester uniquement les cas problématiques
+npm run test:problematic
+# ou
+./test-problematic.sh
 ```
 
-## Installation
+Note : Les tests s'exécutent directement en TypeScript grâce à `tsx`, sans compilation préalable.
+
+## Installation de l'extension Chrome
 
 1. **Installer le modèle Ollama** : `ollama pull gemma3n:e4b`
 2. **Démarrer Ollama avec les origines autorisées** :

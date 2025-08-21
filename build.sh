@@ -2,13 +2,15 @@
 
 echo "🏗️  Construction de l'extension Chrome..."
 echo ""
+echo "ℹ️  Note: Chrome nécessite du JavaScript, donc nous devons compiler le TypeScript"
+echo ""
 
-# Nettoyer les anciens fichiers
+# Nettoyer les anciens fichiers JS de l'extension
 echo "🧹 Nettoyage des anciens fichiers..."
-rm -f *.js
+rm -f background.js content.js popup.js
 
-# Compiler avec esbuild
-echo "📦 Compilation des fichiers TypeScript..."
+# Compiler avec esbuild (seulement les fichiers de l'extension)
+echo "📦 Compilation des fichiers TypeScript de l'extension..."
 npx esbuild background.ts content.ts popup.ts --bundle --outdir=. --format=iife
 
 if [ $? -eq 0 ]; then

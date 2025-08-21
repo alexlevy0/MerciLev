@@ -1,7 +1,19 @@
 {
+  "name": "french-corrector-extension",
+  "version": "1.0.0",
+  "description": "Extension Chrome pour la correction orthographique et grammaticale en français",
+  "scripts": {
+    "build": "./build.sh",
+    "test": "./run-tests.sh",
+    "test:problematic": "./test-problematic.sh"
+  },
   "devDependencies": {
+    "@types/chrome": "^0.0.286",
     "@types/node": "^24.3.0",
     "esbuild": "^0.25.9",
-    "typescript": "^5.9.2"
+    "tsx": "^4.20.4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

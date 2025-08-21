@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Lancement des tests de correction française"
+echo "🧪 Test des cas problématiques"
 echo ""
 
 # Vérifier si Ollama est en cours d'exécution
@@ -10,8 +10,5 @@ if ! curl -s http://localhost:11434/ > /dev/null; then
     exit 1
 fi
 
-# Exécuter les tests directement avec tsx
-echo "🧪 Exécution des tests..."
-echo ""
-npx tsx test-ollama.ts
-
+# Exécuter le test directement avec tsx
+npx tsx test-problematic.ts

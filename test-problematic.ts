@@ -1,5 +1,5 @@
 // Test rapide pour les cas problématiques
-const http = require('http');
+import * as http from 'http';
 import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
 
 // Fonction pour faire une requête HTTP
