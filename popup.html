@@ -77,6 +77,40 @@
       font-size: 12px;
       color: #6b7280;
     }
+    
+    .model-selector {
+      margin-bottom: 16px;
+    }
+    
+    .model-selector label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #4b5563;
+      margin-bottom: 6px;
+    }
+    
+    .model-selector select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 14px;
+      background-color: white;
+      cursor: pointer;
+    }
+    
+    .model-selector select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .model-info {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -87,10 +121,19 @@
     <div id="errorDetails" class="error-details" style="display: none;"></div>
   </div>
   
+  <div class="model-selector">
+    <label for="modelSelect">Modèle Ollama :</label>
+    <select id="modelSelect">
+      <option value="gemma3n:e4b">gemma3n:e4b (Recommandé)</option>
+      <option value="gemma3n:e2b">gemma3n:e2b (Plus rapide)</option>
+    </select>
+    <div class="model-info">Le changement prendra effet immédiatement</div>
+  </div>
+  
   <button id="testButton">Tester connexion</button>
   
   <div class="info">
-    Modèle : gemma3n:e4b<br>
+    <div id="currentModel">Modèle actuel : chargement...</div>
     Endpoint : localhost:11434
   </div>
   

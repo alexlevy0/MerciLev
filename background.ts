@@ -1,5 +1,5 @@
 // FICHIER: background.ts
-import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, MODELS, DEFAULT_MODEL, setModel, ModelName } from './ollama-prompt.ts';
 
 interface CorrectionRequest {
   sentence: string;
@@ -35,6 +35,17 @@ interface OllamaResponse {
 
 // État de l'extension
 let lastError: string | null = null;
+
+// Charger le modèle depuis le stockage
+chrome.storage.sync.get(['model'], (result) => {
+  if (result.model && Object.values(MODELS).includes(result.model)) {
+    setModel(result.model as ModelName);
+    console.log(`Modèle chargé: ${result.model}`);
+  } else {
+    // Sauvegarder le modèle par défaut
+    chrome.storage.sync.set({ model: DEFAULT_MODEL });
+  }
+});
 
 // Fonction pour appeler Ollama pour la correction
 async function callOllama(sentence: string, fullText: string, cursorPosition: number): Promise<string> {
@@ -360,6 +371,25 @@ function getErrorDetails(error: string | null): string {
 
 // Gestionnaire de messages
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'change-model') {
+    const newModel = request.model as ModelName;
+    if (Object.values(MODELS).includes(newModel)) {
+      setModel(newModel);
+      chrome.storage.sync.set({ model: newModel }, () => {
+        console.log(`Modèle changé: ${newModel}`);
+        sendResponse({ success: true, model: newModel });
+      });
+    } else {
+      sendResponse({ success: false, error: 'Modèle invalide' });
+    }
+    return true; // Garder le canal ouvert pour la réponse asynchrone
+  }
+  
+  if (request.type === 'get-current-model') {
+    sendResponse({ model: MODEL_NAME });
+    return false;
+  }
+  
   if (request.type === 'correct-word') {
     const correctionRequest = request as CorrectionRequest & { type: string };
     

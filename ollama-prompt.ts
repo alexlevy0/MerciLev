@@ -80,5 +80,23 @@ EXEMPLES:
 - "mai" → "mais" (si contexte de conjonction)
 - "a" → "à" (si contexte de préposition)`;
 
-export const MODEL_NAME = 'gemma3n:e4b';
+// Modèles disponibles
+export const MODELS = {
+  GEMMA3N_E4B: 'gemma3n:e4b',
+  GEMMA3N_E2B: 'gemma3n:e2b',
+} as const;
+
+export type ModelName = typeof MODELS[keyof typeof MODELS];
+
+// Modèle par défaut
+export const DEFAULT_MODEL = MODELS.GEMMA3N_E4B;
+
+// Configuration exportée (sera mise à jour dynamiquement)
+export let MODEL_NAME: ModelName = DEFAULT_MODEL;
+
+// Fonction pour changer de modèle
+export function setModel(model: ModelName) {
+  MODEL_NAME = model;
+}
+
 export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';

@@ -3,6 +3,8 @@ const statusDiv = document.getElementById('status')!;
 const statusText = document.getElementById('statusText')!;
 const errorDetails = document.getElementById('errorDetails')!;
 const testButton = document.getElementById('testButton')! as HTMLButtonElement;
+const modelSelect = document.getElementById('modelSelect')! as HTMLSelectElement;
+const currentModelDiv = document.getElementById('currentModel')!;
 
 // Fonction pour mettre à jour l'affichage du statut
 function updateStatus(status: string, hasError: boolean, details?: string) {
@@ -112,11 +114,61 @@ async function testConnection() {
   }
 }
 
+// Charger le modèle actuel
+async function loadCurrentModel() {
+  try {
+    // Récupérer depuis le stockage
+    const stored = await chrome.storage.sync.get(['model']);
+    if (stored.model) {
+      modelSelect.value = stored.model;
+      currentModelDiv.textContent = `Modèle actuel : ${stored.model}`;
+    }
+    
+    // Demander le modèle actuel au background
+    chrome.runtime.sendMessage({ type: 'get-current-model' }, (response) => {
+      if (response && response.model) {
+        modelSelect.value = response.model;
+        currentModelDiv.textContent = `Modèle actuel : ${response.model}`;
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors du chargement du modèle:', error);
+  }
+}
+
+// Changer de modèle
+async function changeModel() {
+  const newModel = modelSelect.value;
+  modelSelect.disabled = true;
+  
+  try {
+    chrome.runtime.sendMessage(
+      { type: 'change-model', model: newModel },
+      (response) => {
+        if (response && response.success) {
+          currentModelDiv.textContent = `Modèle actuel : ${newModel}`;
+          updateStatus('OK', false);
+          // Retester la connexion avec le nouveau modèle
+          setTimeout(testConnection, 500);
+        } else {
+          updateStatus('Erreur lors du changement de modèle', true);
+        }
+        modelSelect.disabled = false;
+      }
+    );
+  } catch (error) {
+    console.error('Erreur:', error);
+    modelSelect.disabled = false;
+  }
+}
+
 // Gestionnaires d'événements
 testButton.addEventListener('click', testConnection);
+modelSelect.addEventListener('change', changeModel);
 
-// Charger le statut au démarrage
+// Charger le statut et le modèle au démarrage
 loadStatus();
+loadCurrentModel();
 
 // Rafraîchir le statut toutes les 2 secondes
 setInterval(loadStatus, 2000);

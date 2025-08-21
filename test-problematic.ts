@@ -1,6 +1,15 @@
 // Test rapide pour les cas problématiques
 import * as http from 'http';
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, setModel, MODELS } from './ollama-prompt.ts';
+
+// Utiliser le modèle spécifié par l'environnement si disponible
+if (process.env.OLLAMA_MODEL) {
+  const envModel = process.env.OLLAMA_MODEL;
+  if (Object.values(MODELS).includes(envModel as any)) {
+    setModel(envModel as any);
+    console.log(`📌 Utilisation du modèle: ${envModel}\n`);
+  }
+}
 
 // Fonction pour faire une requête HTTP
 function makeRequest(body: string): Promise<any> {
