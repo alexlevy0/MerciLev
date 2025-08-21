@@ -1,8 +1,18 @@
 // FICHIER: content.ts
+interface EditableElement {
+  element: HTMLElement;
+  type: 'input' | 'textarea' | 'contenteditable' | 'canvas' | 'custom';
+  getValue: () => string;
+  setValue: (value: string) => void;
+  getCaretPosition: () => number;
+  setCaretPosition: (pos: number) => void;
+  isEditable: () => boolean;
+}
+
 interface InputState {
-  input: HTMLInputElement | HTMLTextAreaElement;
+  element: EditableElement;
   overlay: HTMLDivElement;
-  correctedWords: Map<number, {word: string, originalWord: string}>;
+  correctedWords: Map<number, {word: string, originalWord: string, timestamp?: number}>;
   lastValue: string;
   isComposing: boolean;
   currentSuggestion: string;
@@ -12,11 +22,122 @@ interface InputState {
   correctionInProgress: boolean;
   completionTimeout?: number;
   originalValue: string;
-  suggestionElement: HTMLSpanElement | null;
 }
 
-// Map des états pour chaque input
-const inputStates = new Map<HTMLInputElement | HTMLTextAreaElement, InputState>();
+// Map des états pour chaque élément éditable
+const elementStates = new Map<HTMLElement, InputState>();
+
+// Détecter le type d'élément éditable et créer un wrapper
+function createEditableWrapper(element: HTMLElement): EditableElement | null {
+  // Input et textarea standards
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    return {
+      element,
+      type: element instanceof HTMLInputElement ? 'input' : 'textarea',
+      getValue: () => element.value,
+      setValue: (value: string) => { element.value = value; },
+      getCaretPosition: () => element.selectionStart || 0,
+      setCaretPosition: (pos: number) => { element.setSelectionRange(pos, pos); },
+      isEditable: () => !element.disabled && !element.readOnly
+    };
+  }
+  
+  // Éléments contenteditable
+  if (element.contentEditable === 'true' || element.isContentEditable) {
+    return {
+      element,
+      type: 'contenteditable',
+      getValue: () => element.textContent || '',
+      setValue: (value: string) => { 
+        // Préserver la structure HTML si possible
+        if (element.innerHTML.includes('<')) {
+          // Remplacer seulement le texte, pas les balises
+          const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
+          
+          let node;
+          let offset = 0;
+          while (node = walker.nextNode()) {
+            const textNode = node as Text;
+            const len = textNode.textContent?.length || 0;
+            if (offset + len >= value.length) {
+              textNode.textContent = value.substring(offset);
+              break;
+            }
+            textNode.textContent = value.substring(offset, offset + len);
+            offset += len;
+          }
+        } else {
+          element.textContent = value;
+        }
+      },
+      getCaretPosition: () => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return 0;
+        
+        const range = sel.getRangeAt(0);
+        const preCaretRange = range.cloneRange();
+        preCaretRange.selectNodeContents(element);
+        preCaretRange.setEnd(range.endContainer, range.endOffset);
+        
+        return preCaretRange.toString().length;
+      },
+      setCaretPosition: (pos: number) => {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        if (!sel) return;
+        
+        let currentPos = 0;
+        let found = false;
+        
+        const walker = document.createTreeWalker(
+          element,
+          NodeFilter.SHOW_TEXT,
+          null
+        );
+        
+        let node;
+        while (node = walker.nextNode()) {
+          const textNode = node as Text;
+          const len = textNode.textContent?.length || 0;
+          
+          if (currentPos + len >= pos) {
+            range.setStart(textNode, pos - currentPos);
+            range.collapse(true);
+            found = true;
+            break;
+          }
+          
+          currentPos += len;
+        }
+        
+        if (found) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      },
+      isEditable: () => element.contentEditable === 'true'
+    };
+  }
+  
+  // Éléments avec role="textbox"
+  if (element.getAttribute('role') === 'textbox') {
+    return {
+      element,
+      type: 'custom',
+      getValue: () => element.textContent || '',
+      setValue: (value: string) => { element.textContent = value; },
+      getCaretPosition: () => 0, // À implémenter selon le site
+      setCaretPosition: (pos: number) => {}, // À implémenter selon le site
+      isEditable: () => true
+    };
+  }
+  
+  return null;
+}
 
 // Extraire la phrase actuelle autour de la position du curseur
 function getCurrentSentence(text: string, position: number): string {
@@ -96,15 +217,17 @@ function getWordBounds(text: string, position: number): {start: number, end: num
 }
 
 // Créer l'overlay miroir
-function createOverlay(input: HTMLInputElement | HTMLTextAreaElement): HTMLDivElement {
+function createOverlay(wrapper: EditableElement): HTMLDivElement {
   const overlay = document.createElement('div');
   overlay.className = 'correction-overlay';
   
-  const computedStyle = window.getComputedStyle(input);
+  const element = wrapper.element;
+  const computedStyle = window.getComputedStyle(element);
+  
   overlay.style.cssText = `
     position: absolute;
     pointer-events: none;
-    white-space: pre-wrap;
+    white-space: ${computedStyle.whiteSpace};
     overflow: hidden;
     color: transparent;
     background: transparent;
@@ -120,8 +243,14 @@ function createOverlay(input: HTMLInputElement | HTMLTextAreaElement): HTMLDivEl
     z-index: 10000;
   `;
   
-  updateOverlayPosition(input, overlay);
-  input.parentElement?.appendChild(overlay);
+  updateOverlayPosition(element, overlay);
+  
+  // Insérer l'overlay juste après l'élément
+  if (element.parentElement) {
+    element.parentElement.insertBefore(overlay, element.nextSibling);
+  } else {
+    document.body.appendChild(overlay);
+  }
   
   return overlay;
 }
@@ -138,22 +267,29 @@ function createSuggestionElement(): HTMLSpanElement {
 }
 
 // Mise à jour de la position de l'overlay
-function updateOverlayPosition(input: HTMLInputElement | HTMLTextAreaElement, overlay: HTMLDivElement) {
-  const rect = input.getBoundingClientRect();
+function updateOverlayPosition(element: HTMLElement, overlay: HTMLDivElement) {
+  const rect = element.getBoundingClientRect();
+  const computedStyle = window.getComputedStyle(element);
+  
   overlay.style.left = `${rect.left + window.scrollX}px`;
   overlay.style.top = `${rect.top + window.scrollY}px`;
   overlay.style.width = `${rect.width}px`;
   overlay.style.height = `${rect.height}px`;
+  
+  // Pour les éléments contenteditable, ajuster la hauteur si nécessaire
+  if (element.contentEditable === 'true') {
+    overlay.style.minHeight = computedStyle.minHeight;
+    overlay.style.maxHeight = computedStyle.maxHeight;
+  }
 }
 
 // Mise à jour du contenu de l'overlay avec animations et suggestion
 function updateOverlayContent(state: InputState, showSuggestion: boolean = true) {
-  const text = state.input.value;
-  const caretPos = state.input.selectionStart || text.length;
+  const text = state.element.getValue();
+  const caretPos = state.element.getCaretPosition();
   let html = '';
-  let charIndex = 0;
   
-  // Traiter le texte caractère par caractère pour insérer la suggestion au bon endroit
+  // Traiter le texte caractère par caractère
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     
@@ -164,22 +300,20 @@ function updateOverlayContent(state: InputState, showSuggestion: boolean = true)
     for (const [pos, correction] of state.correctedWords) {
       if (i >= pos && i < pos + correction.originalWord.length) {
         hasCorrection = true;
-        const isNew = Date.now() - (correction as any).timestamp < 1000;
+        const isNew = Date.now() - (correction.timestamp || 0) < 1000;
         correctionClass = isNew ? 'correction-animate' : 'correction-highlight';
         break;
       }
     }
     
-    // Ajouter le caractère avec ou sans style
     if (hasCorrection) {
-      // Gérer les mots corrigés en entier
       const correctionEntry = Array.from(state.correctedWords.entries()).find(
         ([pos, corr]) => i === pos
       );
       if (correctionEntry) {
         const [_, corr] = correctionEntry;
         html += `<span class="${correctionClass}">${escapeHtml(corr.word)}</span>`;
-        i += corr.originalWord.length - 1; // Sauter les caractères du mot original
+        i += corr.originalWord.length - 1;
         continue;
       }
     } else {
@@ -187,7 +321,7 @@ function updateOverlayContent(state: InputState, showSuggestion: boolean = true)
     }
   }
   
-  // Ajouter la suggestion fantôme si on est à la fin du texte
+  // Ajouter la suggestion fantôme
   if (showSuggestion && state.currentSuggestion && caretPos === text.length) {
     html += `<span class="ghost-suggestion">${escapeHtml(state.currentSuggestion)}</span>`;
   }
@@ -286,8 +420,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     state.pendingCorrection = null;
   }
   
-  const input = state.input;
-  const text = input.value;
+  const text = state.element.getValue();
   
   // Extraire la phrase courante
   const sentence = getCurrentSentence(text, spacePosition);
@@ -313,7 +446,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       cursorPosition: spacePosition - sentenceStart,
       sentenceStart: sentenceStart,
       tabId: chrome.runtime.id,
-      inputId: input.id || 'unknown'
+      inputId: 'unknown'
     });
     
     // Vérifier si la correction a été annulée
@@ -322,8 +455,8 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     }
     
     // Vérifier que l'utilisateur n'a pas continué à taper après l'espace
-    const currentCaretPos = input.selectionStart;
-    const currentText = input.value;
+    const currentCaretPos = state.element.getCaretPosition();
+    const currentText = state.element.getValue();
     
     // Si le texte a changé après l'espace ou si le curseur a bougé significativement, on annule
     if (currentCaretPos && currentCaretPos > state.lastSpacePosition + 1) {
@@ -331,7 +464,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     }
     
     if (response.error) {
-      showErrorTooltip(input, response.error);
+      showErrorTooltip(state.element.element, response.error);
       return;
     }
     
@@ -342,7 +475,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
                      response.correctedSentence + 
                      currentText.substring(sentenceStart + sentence.length);
       
-      input.value = newText;
+      state.element.setValue(newText);
       
       // Calculer la nouvelle position du curseur
       let lengthDiff = 0;
@@ -353,7 +486,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       }
       
       const newCaretPos = state.lastSpacePosition + lengthDiff;
-      input.setSelectionRange(newCaretPos, newCaretPos);
+      state.element.setCaretPosition(newCaretPos);
       
       // Enregistrer toutes les corrections avec timestamp pour l'animation
       const now = Date.now();
@@ -388,16 +521,15 @@ async function handleAutocompletion(state: InputState) {
     return;
   }
   
-  const input = state.input;
-  const caretPos = input.selectionStart;
+  const caretPos = state.element.getCaretPosition();
   
   // Autocomplétion seulement si on est à la fin du texte
-  if (!caretPos || state.isComposing || caretPos !== input.value.length) {
+  if (!caretPos || state.isComposing || caretPos !== state.element.getValue().length) {
     hideSuggestion(state);
     return;
   }
   
-  const text = input.value;
+  const text = state.element.getValue();
   const wordBounds = getWordBounds(text, caretPos);
   
   // Permettre l'autocomplétion même pour des mots très courts (pour corriger "a" en "à" par exemple)
@@ -456,7 +588,7 @@ async function handleAutocompletion(state: InputState) {
 function showSuggestion(state: InputState, suggestion: string, position: number) {
   state.currentSuggestion = suggestion;
   state.suggestionStart = position;
-  state.originalValue = state.input.value;
+  state.originalValue = state.element.getValue();
   updateOverlayContent(state);
 }
 
@@ -471,131 +603,75 @@ function hideSuggestion(state: InputState) {
 function acceptSuggestion(state: InputState) {
   if (!state.currentSuggestion) return;
   
-  const input = state.input;
-  const currentText = input.value;
-  const caretPos = input.selectionStart || currentText.length;
+  const currentText = state.element.getValue();
+  const caretPos = state.element.getCaretPosition();
   
-  // Construire le nouveau texte
   let newText: string;
   let newCaretPos: number;
   
   if (state.suggestionStart < currentText.length) {
-    // Correction - remplacer une partie du texte
     newText = currentText.substring(0, state.suggestionStart) + 
               state.currentSuggestion + 
               currentText.substring(caretPos);
     newCaretPos = state.suggestionStart + state.currentSuggestion.length;
   } else {
-    // Ajout simple à la fin
     newText = currentText + state.currentSuggestion;
     newCaretPos = newText.length;
   }
   
-  input.value = newText;
-  input.setSelectionRange(newCaretPos, newCaretPos);
+  state.element.setValue(newText);
+  state.element.setCaretPosition(newCaretPos);
   
-  // Mettre à jour l'état
   state.lastValue = newText;
   hideSuggestion(state);
 }
 
-// Observer un input/textarea
-function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
-  if (inputStates.has(input)) {
-    return;
-  }
+// Observer les changements sur un élément éditable
+function observeEditableElement(element: HTMLElement) {
+  const wrapper = createEditableWrapper(element);
+  if (!wrapper || !wrapper.isEditable()) return;
   
-  const overlay = createOverlay(input);
+  // Vérifier si déjà observé
+  if (elementStates.has(element)) return;
+  
+  const overlay = createOverlay(wrapper);
   const state: InputState = {
-    input,
+    element: wrapper,
     overlay,
     correctedWords: new Map(),
-    lastValue: input.value,
+    lastValue: wrapper.getValue(),
     isComposing: false,
     currentSuggestion: '',
     suggestionStart: -1,
     pendingCorrection: null,
     lastSpacePosition: -1,
     correctionInProgress: false,
-    originalValue: input.value,
-    suggestionElement: null
+    originalValue: wrapper.getValue()
   };
   
-  inputStates.set(input, state);
+  elementStates.set(element, state);
   
+  // Observer les changements selon le type d'élément
+  if (wrapper.type === 'input' || wrapper.type === 'textarea') {
+    observeInputElement(element as HTMLInputElement | HTMLTextAreaElement, state);
+  } else {
+    observeContentEditableElement(element, state);
+  }
+}
+
+// Observer un input/textarea classique
+function observeInputElement(input: HTMLInputElement | HTMLTextAreaElement, state: InputState) {
   // Événement de saisie
   input.addEventListener('input', async (event) => {
-    const newValue = input.value;
-    const oldValue = state.lastValue;
-    const inputEvent = event as InputEvent;
-    const caretPos = input.selectionStart || 0;
-    
-    // Si on tape un caractère après un espace, annuler toute correction en cours
-    if (state.pendingCorrection && caretPos > state.lastSpacePosition) {
-      state.pendingCorrection.abort();
-      state.pendingCorrection = null;
-    }
-    
-    // Détecter si un espace ou une ponctuation a été ajoutée
-    const triggers = [' ', '.', ',', '!', '?', ';', ':'];
-    if (!state.isComposing && inputEvent.data && triggers.includes(inputEvent.data)) {
-      // Vérifier que c'est bien un ajout (pas un remplacement)
-      if (newValue.length > oldValue.length) {
-        await handleSpacePress(state, caretPos - 1);
-      }
-    } else if (!state.isComposing && inputEvent.data && !triggers.includes(inputEvent.data)) {
-      // Si on tape un caractère non-espace, annuler les corrections en cours
-      if (state.pendingCorrection) {
-        state.pendingCorrection.abort();
-        state.pendingCorrection = null;
-      }
-      
-      // Gérer l'autocomplétion seulement si on n'est pas en train de corriger
-      if (!state.correctionInProgress) {
-        // Débouncer l'autocomplétion avec un délai plus court
-        if (state.completionTimeout) {
-          clearTimeout(state.completionTimeout);
-        }
-        state.completionTimeout = setTimeout(() => handleAutocompletion(state), 100);
-      }
-    } else if (inputEvent.inputType === 'deleteContentBackward' || inputEvent.inputType === 'deleteContentForward') {
-      // Cacher la suggestion si on efface
-      hideSuggestion(state);
-    }
-    
-    // Si le texte change, cacher la suggestion actuelle
-    if (state.currentSuggestion && newValue !== state.originalValue + state.currentSuggestion) {
-      hideSuggestion(state);
-    }
-    
-    state.lastValue = newValue;
-    updateOverlayContent(state);
+    await handleInput(state, event as InputEvent);
   });
   
-  // Gérer les touches spéciales
+  // Touches spéciales
   input.addEventListener('keydown', (event) => {
-    // Annuler la correction si on utilise Backspace ou Delete
-    if ((event.key === 'Backspace' || event.key === 'Delete') && state.pendingCorrection) {
-      state.pendingCorrection.abort();
-      state.pendingCorrection = null;
-    }
-    
-    // Gérer Tab pour accepter la suggestion
-    if (event.key === 'Tab' && state.currentSuggestion) {
-      event.preventDefault();
-      acceptSuggestion(state);
-    } else if (event.key === 'Escape' && state.currentSuggestion) {
-      // Échap pour cacher la suggestion
-      hideSuggestion(state);
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || 
-               event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
-               event.key === 'Home' || event.key === 'End') {
-      // Cacher la suggestion si on navigue
-      hideSuggestion(state);
-    }
+    handleKeyDown(state, event);
   });
   
-  // Gérer la composition (IME)
+  // Composition IME
   input.addEventListener('compositionstart', () => {
     state.isComposing = true;
   });
@@ -604,46 +680,175 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
     state.isComposing = false;
   });
   
-  // Cacher la suggestion lors du blur
+  // Focus/Blur
   input.addEventListener('blur', () => {
     setTimeout(() => hideSuggestion(state), 200);
   });
-  
-  // Mise à jour de la position
-  const updatePosition = () => {
-    updateOverlayPosition(input, overlay);
-    if (state.currentSuggestion) {
-      hideSuggestion(state);
+}
+
+// Observer un élément contenteditable
+function observeContentEditableElement(element: HTMLElement, state: InputState) {
+  // MutationObserver pour détecter les changements
+  const observer = new MutationObserver(async (mutations) => {
+    const newValue = state.element.getValue();
+    if (newValue !== state.lastValue) {
+      // Créer un InputEvent simulé
+      const event = new InputEvent('input', {
+        data: newValue.slice(-1),
+        inputType: 'insertText'
+      });
+      await handleInput(state, event);
     }
-  };
+  });
   
-  window.addEventListener('scroll', updatePosition, { passive: true });
-  window.addEventListener('resize', updatePosition, { passive: true });
+  observer.observe(element, {
+    childList: true,
+    characterData: true,
+    subtree: true
+  });
   
-  const resizeObserver = new ResizeObserver(() => updatePosition());
-  resizeObserver.observe(input);
+  // Événements clavier
+  element.addEventListener('keydown', (event) => {
+    handleKeyDown(state, event);
+  });
+  
+  // Composition IME
+  element.addEventListener('compositionstart', () => {
+    state.isComposing = true;
+  });
+  
+  element.addEventListener('compositionend', () => {
+    state.isComposing = false;
+  });
+  
+  // Focus/Blur
+  element.addEventListener('blur', () => {
+    setTimeout(() => hideSuggestion(state), 200);
+  });
+  
+  // Intercepter les événements beforeinput pour certains éditeurs
+  element.addEventListener('beforeinput', async (event) => {
+    if (event.inputType === 'insertText' && event.data) {
+      // Attendre un peu pour que le texte soit inséré
+      setTimeout(async () => {
+        await handleInput(state, event);
+      }, 10);
+    }
+  });
 }
 
-// Observer tous les inputs existants
-function observeAllInputs() {
-  const inputs = document.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
-  inputs.forEach(input => observeInput(input as HTMLInputElement | HTMLTextAreaElement));
+// Gérer l'input
+async function handleInput(state: InputState, event: InputEvent) {
+  const newValue = state.element.getValue();
+  const oldValue = state.lastValue;
+  const caretPos = state.element.getCaretPosition();
+  
+  // Si on tape un caractère après un espace, annuler toute correction en cours
+  if (state.pendingCorrection && caretPos > state.lastSpacePosition) {
+    state.pendingCorrection.abort();
+    state.pendingCorrection = null;
+  }
+  
+  // Détecter si un espace ou une ponctuation a été ajoutée
+  const triggers = [' ', '.', ',', '!', '?', ';', ':'];
+  if (!state.isComposing && event.data && triggers.includes(event.data)) {
+    // Vérifier que c'est bien un ajout
+    if (newValue.length > oldValue.length) {
+      await handleSpacePress(state, caretPos - 1);
+    }
+  } else if (!state.isComposing && event.data && !triggers.includes(event.data)) {
+    // Si on tape un caractère non-trigger, annuler les corrections en cours
+    if (state.pendingCorrection) {
+      state.pendingCorrection.abort();
+      state.pendingCorrection = null;
+    }
+    
+    // Gérer l'autocomplétion
+    if (!state.correctionInProgress) {
+      if (state.completionTimeout) {
+        clearTimeout(state.completionTimeout);
+      }
+      state.completionTimeout = setTimeout(() => handleAutocompletion(state), 100);
+    }
+  } else if (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward') {
+    hideSuggestion(state);
+  }
+  
+  // Si le texte change, cacher la suggestion actuelle
+  if (state.currentSuggestion && newValue !== state.originalValue + state.currentSuggestion) {
+    hideSuggestion(state);
+  }
+  
+  state.lastValue = newValue;
+  updateOverlayContent(state);
 }
 
-// Observer les nouveaux éléments
+// Gérer les touches spéciales
+function handleKeyDown(state: InputState, event: KeyboardEvent) {
+  // Annuler la correction si on utilise Backspace ou Delete
+  if ((event.key === 'Backspace' || event.key === 'Delete') && state.pendingCorrection) {
+    state.pendingCorrection.abort();
+    state.pendingCorrection = null;
+  }
+  
+  // Gérer Tab pour accepter la suggestion
+  if (event.key === 'Tab' && state.currentSuggestion) {
+    event.preventDefault();
+    acceptSuggestion(state);
+  } else if (event.key === 'Escape' && state.currentSuggestion) {
+    hideSuggestion(state);
+  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || 
+             event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
+             event.key === 'Home' || event.key === 'End') {
+    hideSuggestion(state);
+  }
+}
+
+// Observer tous les éléments éditables
+function observeAllEditableElements() {
+  // Inputs et textareas standards
+  const standardInputs = document.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
+  standardInputs.forEach(element => observeEditableElement(element as HTMLElement));
+  
+  // Éléments contenteditable
+  const contentEditables = document.querySelectorAll('[contenteditable="true"], [contenteditable=""]');
+  contentEditables.forEach(element => observeEditableElement(element as HTMLElement));
+  
+  // Éléments avec role="textbox"
+  const textboxRoles = document.querySelectorAll('[role="textbox"]');
+  textboxRoles.forEach(element => observeEditableElement(element as HTMLElement));
+  
+  // Certains éditeurs utilisent des divs avec des classes spécifiques
+  const customEditors = document.querySelectorAll('.editor, .text-editor, .input-field, .editable, .draft-editor, .ql-editor, .ace_editor, .monaco-editor, .cm-editor');
+  customEditors.forEach(element => observeEditableElement(element as HTMLElement));
+}
+
+// Observer les nouveaux éléments ajoutés au DOM
 const mutationObserver = new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     if (mutation.type === 'childList') {
       mutation.addedNodes.forEach(node => {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          const element = node as Element;
-          if (element.matches('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea')) {
-            observeInput(element as HTMLInputElement | HTMLTextAreaElement);
+          const element = node as HTMLElement;
+          
+          // Vérifier si c'est un élément éditable
+          if (element.matches('input, textarea, [contenteditable], [role="textbox"]')) {
+            observeEditableElement(element);
           }
-          const inputs = element.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
-          inputs.forEach(input => observeInput(input as HTMLInputElement | HTMLTextAreaElement));
+          
+          // Chercher dans les enfants
+          const editables = element.querySelectorAll('input, textarea, [contenteditable], [role="textbox"], .editor, .text-editor');
+          editables.forEach(child => observeEditableElement(child as HTMLElement));
         }
       });
+    }
+    
+    // Observer aussi les changements d'attributs
+    if (mutation.type === 'attributes') {
+      const element = mutation.target as HTMLElement;
+      if (mutation.attributeName === 'contenteditable' || mutation.attributeName === 'role') {
+        observeEditableElement(element);
+      }
     }
   }
 });
@@ -671,6 +876,11 @@ style.textContent = `
     }
   }
   
+  .correction-overlay {
+    pointer-events: none !important;
+    user-select: none !important;
+  }
+  
   .correction-overlay .correction-highlight {
     text-decoration: underline;
     text-decoration-color: #16a34a;
@@ -696,8 +906,15 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Démarrer l'observation
-observeAllInputs();
+observeAllEditableElements();
 mutationObserver.observe(document.body, {
   childList: true,
-  subtree: true
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['contenteditable', 'role']
 });
+
+// Réobserver périodiquement pour les éléments créés dynamiquement
+setInterval(() => {
+  observeAllEditableElements();
+}, 2000);
