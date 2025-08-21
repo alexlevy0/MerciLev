@@ -1,6 +1,6 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings
 
-import { CORRECTION_SYSTEM_PROMPT, MODELS, OLLAMA_ENDPOINT, ModelName } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODELS, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
 
 interface TestCase {
   input: string;
