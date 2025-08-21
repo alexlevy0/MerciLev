@@ -83,31 +83,62 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
     existingTooltip.remove();
   }
   
+  // Traduire les messages d'erreur en français
+  const errorMessages: Record<string, string> = {
+    'Ollama unreachable': 'Ollama inaccessible',
+    'Model not found': 'Modèle introuvable',
+    'Access forbidden (403)': 'Accès refusé (403)',
+    'Authentication required (401)': 'Authentification requise',
+    'Ollama server error (500)': 'Erreur serveur Ollama',
+    'Bad gateway (502)': 'Passerelle incorrecte',
+    'Service unavailable (503)': 'Service indisponible'
+  };
+  
+  const displayError = errorMessages[error] || error;
+  
   const tooltip = document.createElement('div');
   tooltip.className = 'correction-error-tooltip';
-  tooltip.textContent = error;
+  tooltip.innerHTML = `
+    <div style="font-weight: 600; margin-bottom: 2px;">Erreur de correction</div>
+    <div>${displayError}</div>
+  `;
   tooltip.style.cssText = `
     position: absolute;
     background: #dc2626;
     color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border-radius: 6px;
     font-size: 12px;
     z-index: 10001;
     pointer-events: none;
     animation: fadeIn 0.2s ease-in;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    max-width: 250px;
+    line-height: 1.4;
   `;
   
   const rect = input.getBoundingClientRect();
   tooltip.style.left = `${rect.left + window.scrollX}px`;
   tooltip.style.top = `${rect.bottom + window.scrollY + 4}px`;
   
+  // Ajuster la position si l'infobulle sort de l'écran
   document.body.appendChild(tooltip);
+  const tooltipRect = tooltip.getBoundingClientRect();
   
-  // Supprimer après 3 secondes
+  if (tooltipRect.right > window.innerWidth) {
+    tooltip.style.left = `${window.innerWidth - tooltipRect.width - 10}px`;
+  }
+  
+  if (tooltipRect.bottom > window.innerHeight) {
+    tooltip.style.top = `${rect.top + window.scrollY - tooltipRect.height - 4}px`;
+  }
+  
+  // Supprimer après 5 secondes
   setTimeout(() => {
-    tooltip.remove();
-  }, 3000);
+    tooltip.style.opacity = '0';
+    tooltip.style.transition = 'opacity 0.3s ease-out';
+    setTimeout(() => tooltip.remove(), 300);
+  }, 5000);
 }
 
 // Gérer la détection d'espace et la correction
@@ -242,6 +273,10 @@ style.textContent = `
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .correction-error-tooltip {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 `;
 document.head.appendChild(style);
