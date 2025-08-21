@@ -2,7 +2,7 @@
 
 ## Prérequis
 
-- Node.js 22+ et npm installés (avec support des flags expérimentaux TypeScript)
+- Node.js 24+ et npm installés (pour le support TypeScript natif)
 - Ollama installé avec le modèle `gemma3n:e4b`
 
 ## Installation
@@ -47,7 +47,7 @@ Tous les scripts sont écrits en TypeScript et peuvent être exécutés directem
 ./test-problematic-runner.ts
 ```
 
-Note : Node.js 22+ utilise le flag `--experimental-strip-types` pour exécuter TypeScript directement, sans compilation préalable ni dépendance externe.
+Note : Node.js 24+ utilise le flag `--experimental-strip-types` pour exécuter TypeScript directement, sans compilation préalable ni dépendance externe comme `tsx`.
 
 ## Installation de l'extension Chrome
 
