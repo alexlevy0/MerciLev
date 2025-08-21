@@ -63,6 +63,10 @@ async function testProblematicCases() {
 
   console.log('🧪 Test des cas problématiques\n');
 
+  const responseTimes: number[] = [];
+  let passed = 0;
+  let failed = 0;
+
   for (const test of problematicCases) {
     console.log(`📝 ${test.description}`);
     console.log(`   Input: "${test.input}"`);
@@ -75,21 +79,51 @@ async function testProblematicCases() {
         stream: false
       });
 
+      const startTime = performance.now();
       const data = await makeRequest(body);
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
+      responseTimes.push(responseTime);
+      
       const result = data.response.trim();
       
       if (result === test.expected) {
         console.log(`   ✅ Résultat: "${result}"`);
+        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
+        passed++;
       } else {
         console.log(`   ❌ Résultat: "${result}"`);
         console.log(`   ❌ Attendu:  "${test.expected}"`);
+        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
+        failed++;
       }
     } catch (error) {
       console.log(`   ❌ Erreur: ${error}`);
+      failed++;
     }
     
     console.log('');
   }
+  
+  // Afficher les statistiques
+  const avgTime = responseTimes.length > 0 
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+    : 0;
+  const minTime = responseTimes.length > 0 
+    ? Math.min(...responseTimes) 
+    : 0;
+  const maxTime = responseTimes.length > 0 
+    ? Math.max(...responseTimes) 
+    : 0;
+  
+  console.log('\n📊 Résumé:');
+  console.log(`   ✅ Réussis: ${passed}/${problematicCases.length}`);
+  console.log(`   ❌ Échoués: ${failed}/${problematicCases.length}`);
+  
+  console.log('\n⏱️  Statistiques de temps de réponse:');
+  console.log(`   🔹 Moyenne: ${avgTime.toFixed(0)}ms`);
+  console.log(`   🔸 Minimum: ${minTime.toFixed(0)}ms`);
+  console.log(`   🔺 Maximum: ${maxTime.toFixed(0)}ms`);
 }
 
 // Exécuter

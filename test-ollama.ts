@@ -158,23 +158,31 @@ async function runTests() {
   
   let passed = 0;
   let failed = 0;
+  const responseTimes: number[] = [];
   
   for (const test of testCases) {
     try {
       console.log(`📝 Test: ${test.description}`);
       console.log(`   Input:    "${test.input}"`);
       
+      const startTime = performance.now();
       const result = await callOllama(test.input);
+      const endTime = performance.now();
+      const responseTime = endTime - startTime;
+      responseTimes.push(responseTime);
+      
       const normalizedResult = normalizeString(result);
       const normalizedExpected = normalizeString(test.expected);
       
       if (normalizedResult === normalizedExpected) {
         console.log(`   ✅ Résultat: "${result}"`);
+        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
         console.log(`   ✅ SUCCÈS\n`);
         passed++;
       } else {
         console.log(`   ❌ Résultat: "${result}"`);
         console.log(`   ❌ Attendu:  "${test.expected}"`);
+        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
         console.log(`   ❌ ÉCHEC\n`);
         failed++;
       }
@@ -188,10 +196,26 @@ async function runTests() {
     }
   }
   
+  // Calculer les statistiques de temps
+  const avgTime = responseTimes.length > 0 
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+    : 0;
+  const minTime = responseTimes.length > 0 
+    ? Math.min(...responseTimes) 
+    : 0;
+  const maxTime = responseTimes.length > 0 
+    ? Math.max(...responseTimes) 
+    : 0;
+  
   console.log('\n📊 Résumé des tests:');
   console.log(`   ✅ Réussis: ${passed}/${testCases.length}`);
   console.log(`   ❌ Échoués: ${failed}/${testCases.length}`);
   console.log(`   📈 Taux de réussite: ${Math.round((passed / testCases.length) * 100)}%`);
+  
+  console.log('\n⏱️  Statistiques de temps de réponse:');
+  console.log(`   🔹 Moyenne: ${avgTime.toFixed(0)}ms`);
+  console.log(`   🔸 Minimum: ${minTime.toFixed(0)}ms`);
+  console.log(`   🔺 Maximum: ${maxTime.toFixed(0)}ms`);
 }
 
 // Tester la connexion à Ollama
