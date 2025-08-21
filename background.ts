@@ -1,5 +1,5 @@
 // FICHIER: background.ts
-import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
+import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
 
 interface CorrectionRequest {
   sentence: string;

@@ -2,6 +2,7 @@
   "name": "french-corrector-extension",
   "version": "1.0.0",
   "description": "Extension Chrome pour la correction orthographique et grammaticale en français",
+
   "scripts": {
     "check": "node --experimental-strip-types --no-warnings check-env.ts",
     "build": "node --experimental-strip-types --no-warnings build.ts",

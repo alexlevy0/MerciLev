@@ -1,6 +1,6 @@
 // Test rapide pour les cas problématiques
 import * as http from 'http';
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
 
 // Fonction pour faire une requête HTTP
 function makeRequest(body: string): Promise<any> {

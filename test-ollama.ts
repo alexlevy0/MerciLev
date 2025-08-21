@@ -1,7 +1,7 @@
 // FICHIER: test-ollama.ts
 // Script de test pour vérifier les corrections avec Ollama
 
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
 
 interface TestCase {
   input: string;
