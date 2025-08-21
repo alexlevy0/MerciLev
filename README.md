@@ -2,7 +2,7 @@
 
 ## Prérequis
 
-- Node.js 22+ et npm installés
+- Node.js 22+ et npm installés (avec support des flags expérimentaux TypeScript)
 - Ollama installé avec le modèle `gemma3n:e4b`
 
 ## Installation
@@ -17,8 +17,6 @@ npm install
 ```bash
 # Compilation de l'extension Chrome (nécessaire car Chrome ne supporte pas TypeScript)
 npm run build
-# ou
-./build.sh
 ```
 
 ## Tests
@@ -26,16 +24,30 @@ npm run build
 ```bash
 # Lancer tous les tests de correction
 npm test
-# ou
-./run-tests.sh
 
 # Tester uniquement les cas problématiques
 npm run test:problematic
-# ou
-./test-problematic.sh
+
+# Build + Tests en une commande
+npm run dev
 ```
 
-Note : Les tests s'exécutent directement en TypeScript grâce à `tsx`, sans compilation préalable.
+## Exécution directe des scripts
+
+Tous les scripts sont écrits en TypeScript et peuvent être exécutés directement :
+
+```bash
+# Build
+./build.ts
+
+# Tests
+./run-tests.ts
+
+# Tests problématiques
+./test-problematic-runner.ts
+```
+
+Note : Node.js 22+ utilise le flag `--experimental-strip-types` pour exécuter TypeScript directement, sans compilation préalable ni dépendance externe.
 
 ## Installation de l'extension Chrome
 
