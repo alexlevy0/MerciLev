@@ -65,16 +65,27 @@ function getWordBounds(text: string, position: number): {start: number, end: num
     position--;
   }
   
-  // Trouver le début du mot
+  // Trouver le début du mot (inclure apostrophes et traits d'union)
   let start = position;
-  while (start > 0 && /[^\s.,!?;:()[\]{}'"«»]/.test(text[start - 1])) {
-    start--;
+  while (start > 0) {
+    const char = text[start - 1];
+    // Inclure lettres, chiffres, apostrophes, traits d'union
+    if (/[a-zA-ZÀ-ÿ0-9'''-]/.test(char)) {
+      start--;
+    } else {
+      break;
+    }
   }
   
   // Trouver la fin du mot
   let end = position;
-  while (end < text.length && /[^\s.,!?;:()[\]{}'"«»]/.test(text[end])) {
-    end++;
+  while (end < text.length) {
+    const char = text[end];
+    if (/[a-zA-ZÀ-ÿ0-9'''-]/.test(char)) {
+      end++;
+    } else {
+      break;
+    }
   }
   
   return {
@@ -389,8 +400,8 @@ async function handleAutocompletion(state: InputState) {
   const text = input.value;
   const wordBounds = getWordBounds(text, caretPos);
   
-  // Ne pas faire d'autocomplétion si on est juste après un espace
-  if (!wordBounds.word || wordBounds.word.length < 1 || caretPos === state.lastSpacePosition + 1) {
+  // Permettre l'autocomplétion même pour des mots très courts (pour corriger "a" en "à" par exemple)
+  if (!wordBounds.word) {
     hideSuggestion(state);
     return;
   }
@@ -525,13 +536,14 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
       state.pendingCorrection = null;
     }
     
-    // Détecter si un espace a été ajouté
-    if (inputEvent.data === ' ' && !state.isComposing) {
-      // Vérifier que c'est bien un nouvel espace (pas un remplacement)
+    // Détecter si un espace ou une ponctuation a été ajoutée
+    const triggers = [' ', '.', ',', '!', '?', ';', ':'];
+    if (!state.isComposing && inputEvent.data && triggers.includes(inputEvent.data)) {
+      // Vérifier que c'est bien un ajout (pas un remplacement)
       if (newValue.length > oldValue.length) {
         await handleSpacePress(state, caretPos - 1);
       }
-    } else if (!state.isComposing && inputEvent.data && inputEvent.data !== ' ') {
+    } else if (!state.isComposing && inputEvent.data && !triggers.includes(inputEvent.data)) {
       // Si on tape un caractère non-espace, annuler les corrections en cours
       if (state.pendingCorrection) {
         state.pendingCorrection.abort();

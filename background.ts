@@ -39,25 +39,30 @@ let lastError: string | null = null;
 
 // Fonction pour appeler Ollama pour la correction
 async function callOllama(sentence: string, fullText: string, cursorPosition: number): Promise<string> {
-  const system = `Tu es un correcteur orthographique et grammatical expert en français.
-RÈGLES STRICTES:
-1. Analyse la phrase complète et corrige TOUTES les fautes (orthographe, grammaire, accords)
-2. Retourne UNIQUEMENT la phrase corrigée complète, SANS guillemets ni explications
-3. Les corrections doivent être PROCHES de l'original (même racine, même sens)
-4. Ne jamais changer le sens ou remplacer par des mots sans rapport
-5. Respecte la ponctuation et la casse sauf si c'est une erreur
-6. Tu peux corriger plusieurs mots dans la phrase si nécessaire
-7. Privilégie les corrections minimales et naturelles`;
+  const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
+
+TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
+1. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
+2. GRAMMAIRE: structure des phrases, ordre des mots
+3. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
+4. ACCORDS: 
+   - Genre/nombre des adjectifs (une pomme vert→une pomme verte)
+   - Participes passés (elle est parti→elle est partie)
+   - Déterminants (un femme→une femme)
+5. SYNTAXE: prépositions, articles (aller à le→aller au)
+6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
+
+RÈGLES:
+- Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
+- Garde le sens original et le style
+- Corrige MÊME si l'utilisateur est en train de taper
+- N'ajoute pas de mots non nécessaires`;
   
-  const prompt = `Contexte complet:
-"${fullText}"
+  const prompt = `Contexte: "${fullText}"
 
-Phrase à corriger:
-"${sentence}"
+Phrase avec des fautes: "${sentence}"
 
-Position du curseur dans la phrase: ${cursorPosition}
-
-Corrige TOUTE la phrase en gardant le sens original.`;
+Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords). Retourne la phrase corrigée.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
@@ -192,19 +197,30 @@ function getCommonPrefix(str1: string, str2: string): string {
 
 // Fonction pour obtenir des suggestions d'autocomplétion
 async function getCompletions(partialWord: string, fullText: string, position: number): Promise<string[]> {
-  const system = `Tu es un assistant d'autocomplétion en français.
-RÈGLES:
-1. Complète le mot ou la partie de mot fournie
-2. Si c'est une faute de frappe, propose la correction (ex: "hér" → "héros")
-3. Retourne 1 à 3 suggestions séparées par des virgules
-4. Les suggestions doivent commencer EXACTEMENT par "${partialWord}"
-5. Format: mot1, mot2, mot3
-6. Si le mot semble mal orthographié, propose d'abord la correction la plus probable`;
-  
-  const prompt = `Contexte: "${fullText}"
-Partie à compléter: "${partialWord}"
+  const system = `Tu es un assistant d'autocomplétion expert en français.
 
-Complète ce mot en français. Si c'est une faute (ex: "hér" pour "héros"), propose la fin correcte.`;
+CAPACITÉS:
+1. Complète les mots commencés
+2. Corrige les fautes d'orthographe (phaute→faute)
+3. Suggère le bon accord (vert→verte si féminin)
+4. Propose la bonne conjugaison (mange→mangent si pluriel)
+5. Corrige les erreurs courantes (sa/ça, et/est, a/à)
+
+RÈGLES:
+- Retourne 1-3 suggestions séparées par des virgules
+- Priorise la correction des fautes évidentes
+- Tiens compte du contexte grammatical
+- Format: mot1, mot2, mot3`;
+  
+  // Extraire plus de contexte autour du mot
+  const contextStart = Math.max(0, position - 50);
+  const contextEnd = Math.min(fullText.length, position + 30);
+  const localContext = fullText.substring(contextStart, contextEnd);
+  
+  const prompt = `Contexte local: "${localContext}"
+Mot actuel: "${partialWord}"
+
+Suggère la complétion ou correction la plus probable en tenant compte de la grammaire.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
