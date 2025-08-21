@@ -1,0 +1,211 @@
+// FICHIER: test-ollama.ts
+// Script de test pour vérifier les corrections avec Ollama
+
+const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
+const MODEL_NAME = 'gemma3n:e4b';
+
+interface TestCase {
+  input: string;
+  expected: string;
+  description: string;
+}
+
+// Cas de test pour vérifier les corrections
+const testCases: TestCase[] = [
+  {
+    input: "Je ne suis pas allé chercher mon chien mai je suis allé chercher mon ami ALex !",
+    expected: "Je ne suis pas allé chercher mon chien mais je suis allé chercher mon ami Alex !",
+    description: "Correction de 'mai' en 'mais' et 'ALex' en 'Alex'"
+  },
+  {
+    input: "Il a manger une pomme vert dans le jardin.",
+    expected: "Il a mangé une pomme verte dans le jardin.",
+    description: "Participe passé et accord de l'adjectif"
+  },
+  {
+    input: "Les enfants joues dans la cours de l'ecole.",
+    expected: "Les enfants jouent dans la cour de l'école.",
+    description: "Conjugaison pluriel et orthographe"
+  },
+  {
+    input: "Sa va bien, et toi ? J'ai été a la plage hier.",
+    expected: "Ça va bien, et toi ? J'ai été à la plage hier.",
+    description: "Homophones sa/ça et a/à"
+  },
+  {
+    input: "Elle est parti se matin pour aller au travaille.",
+    expected: "Elle est partie ce matin pour aller au travail.",
+    description: "Accord participe passé, se/ce, travaille/travail"
+  },
+  {
+    input: "J'ai vue un film hier soir avec mais amis.",
+    expected: "J'ai vu un film hier soir avec mes amis.",
+    description: "Participe passé sans accord, mais/mes"
+  },
+  {
+    input: "Ils ont décidés de partir en vacance.",
+    expected: "Ils ont décidé de partir en vacances.",
+    description: "Participe passé avec avoir, vacance/vacances"
+  },
+  {
+    input: "C'est temps sont difficile pour tout le monde.",
+    expected: "Ces temps sont difficiles pour tout le monde.",
+    description: "C'est/Ces et accord de l'adjectif"
+  },
+  {
+    input: "Il faut que je finit mon devoir pour demain.",
+    expected: "Il faut que je finisse mon devoir pour demain.",
+    description: "Subjonctif après 'il faut que'"
+  },
+  {
+    input: "Les phaute d'ortographe sont trop nombreuse dans se texte.",
+    expected: "Les fautes d'orthographe sont trop nombreuses dans ce texte.",
+    description: "Fautes multiples : phaute, accord adjectif, se/ce"
+  }
+];
+
+// Fonction pour appeler Ollama
+async function callOllama(sentence: string): Promise<string> {
+  const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
+
+TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
+1. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
+2. GRAMMAIRE: structure des phrases, ordre des mots
+3. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
+4. ACCORDS: 
+   - Genre/nombre des adjectifs (une pomme vert→une pomme verte)
+   - Participes passés (elle est parti→elle est partie)
+   - Déterminants (un femme→une femme)
+5. SYNTAXE: prépositions, articles (aller à le→aller au)
+6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
+7. HOMOPHONES: mai/mais, a/à, sa/ça, et/est, se/ce, ses/ces/c'est
+
+RÈGLES:
+- Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
+- Garde le sens original et le style
+- Corrige MÊME si l'utilisateur est en train de taper
+- N'ajoute pas de mots non nécessaires`;
+  
+  const prompt = `Phrase avec des fautes: "${sentence}"
+
+Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords, homophones). Retourne la phrase corrigée.`;
+
+  try {
+    const response = await fetch(OLLAMA_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: MODEL_NAME,
+        system: system,
+        prompt: prompt,
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.response.trim();
+  } catch (error) {
+    console.error('Erreur Ollama:', error);
+    throw error;
+  }
+}
+
+// Fonction pour comparer deux chaînes (ignorer espaces multiples)
+function normalizeString(str: string): string {
+  return str.replace(/\s+/g, ' ').trim();
+}
+
+// Exécuter les tests
+async function runTests() {
+  console.log('🧪 Démarrage des tests de correction avec Ollama...\n');
+  
+  let passed = 0;
+  let failed = 0;
+  
+  for (const test of testCases) {
+    try {
+      console.log(`📝 Test: ${test.description}`);
+      console.log(`   Input:    "${test.input}"`);
+      
+      const result = await callOllama(test.input);
+      const normalizedResult = normalizeString(result);
+      const normalizedExpected = normalizeString(test.expected);
+      
+      if (normalizedResult === normalizedExpected) {
+        console.log(`   ✅ Résultat: "${result}"`);
+        console.log(`   ✅ SUCCÈS\n`);
+        passed++;
+      } else {
+        console.log(`   ❌ Résultat: "${result}"`);
+        console.log(`   ❌ Attendu:  "${test.expected}"`);
+        console.log(`   ❌ ÉCHEC\n`);
+        failed++;
+      }
+      
+      // Attendre un peu entre les tests pour ne pas surcharger Ollama
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      console.log(`   ❌ ERREUR: ${error}\n`);
+      failed++;
+    }
+  }
+  
+  console.log('\n📊 Résumé des tests:');
+  console.log(`   ✅ Réussis: ${passed}/${testCases.length}`);
+  console.log(`   ❌ Échoués: ${failed}/${testCases.length}`);
+  console.log(`   📈 Taux de réussite: ${Math.round((passed / testCases.length) * 100)}%`);
+}
+
+// Tester la connexion à Ollama
+async function testConnection(): Promise<boolean> {
+  try {
+    const response = await fetch('http://localhost:11434/');
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Point d'entrée principal
+async function main() {
+  console.log('🚀 Test de l\'extension de correction française avec Ollama\n');
+  
+  // Vérifier la connexion
+  console.log('🔌 Vérification de la connexion à Ollama...');
+  const connected = await testConnection();
+  
+  if (!connected) {
+    console.error('❌ Impossible de se connecter à Ollama !');
+    console.error('   Assurez-vous qu\'Ollama est démarré avec :');
+    console.error('   OLLAMA_ORIGINS="*" ollama serve\n');
+    process.exit(1);
+  }
+  
+  console.log('✅ Connexion à Ollama établie\n');
+  
+  // Vérifier le modèle
+  console.log(`🤖 Vérification du modèle ${MODEL_NAME}...`);
+  try {
+    await callOllama('test');
+    console.log('✅ Modèle disponible\n');
+  } catch (error) {
+    console.error(`❌ Le modèle ${MODEL_NAME} n'est pas disponible !`);
+    console.error(`   Installez-le avec : ollama pull ${MODEL_NAME}\n`);
+    process.exit(1);
+  }
+  
+  // Exécuter les tests
+  await runTests();
+}
+
+// Exécuter si lancé directement
+if (require.main === module) {
+  main().catch(console.error);
+}

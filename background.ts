@@ -51,18 +51,33 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
    - Déterminants (un femme→une femme)
 5. SYNTAXE: prépositions, articles (aller à le→aller au)
 6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
+7. HOMOPHONES: Corrige OBLIGATOIREMENT les confusions entre:
+   - mai/mais (mai = mois, mais = conjonction)
+   - a/à (a = verbe avoir, à = préposition)
+   - sa/ça (sa = possessif, ça = cela)
+   - et/est (et = conjonction, est = verbe être)
+   - se/ce (se = pronom, ce = démonstratif)
+   - ses/ces/c'est
+   - ou/où (ou = choix, où = lieu)
+   - la/là (la = article, là = lieu)
+   - leur/leurs
+   - on/ont
+   - son/sont
 
 RÈGLES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
 - Garde le sens original et le style
 - Corrige MÊME si l'utilisateur est en train de taper
-- N'ajoute pas de mots non nécessaires`;
+- N'ajoute pas de mots non nécessaires
+- Sois TRÈS attentif aux homophones`;
   
   const prompt = `Contexte: "${fullText}"
 
 Phrase avec des fautes: "${sentence}"
 
-Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords). Retourne la phrase corrigée.`;
+Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords, HOMOPHONES). 
+ATTENTION SPÉCIALE aux homophones comme mai/mais, a/à, sa/ça, etc.
+Retourne la phrase corrigée.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
