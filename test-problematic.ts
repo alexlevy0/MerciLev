@@ -1,8 +1,6 @@
 // Test rapide pour les cas problématiques
 const http = require('http');
-
-const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
-const MODEL_NAME = 'gemma3n:e4b';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
 
 // Fonction pour faire une requête HTTP
 function makeRequest(body: string): Promise<any> {
@@ -61,25 +59,7 @@ async function testProblematicCases() {
     }
   ];
 
-  const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
-
-TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
-1. ESPACES MANQUANTS: Ajoute les espaces manquants (Jene→Je ne, ilfaut→il faut)
-2. ORTHOGRAPHE: fautes de frappe, lettres manquantes
-3. GRAMMAIRE: structure des phrases, ordre des mots
-4. CONJUGAISON: temps, modes, personnes
-5. ACCORDS: genre/nombre des adjectifs, participes passés
-6. SYNTAXE: prépositions, articles
-7. TYPOGRAPHIE: espaces, apostrophes
-8. HOMOPHONES: mai/mais, a/à, sa/ça, et/est, se/ce, ses/ces/c'est
-
-RÈGLES STRICTES:
-- Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
-- NE JAMAIS changer "on" en "nous" (les deux sont corrects)
-- NE JAMAIS ajouter ou supprimer des mots
-- NE JAMAIS changer la structure de la phrase
-- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
-- Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est`;
+  const system = CORRECTION_SYSTEM_PROMPT;
 
   console.log('🧪 Test des cas problématiques\n');
 

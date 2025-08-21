@@ -1,8 +1,7 @@
 // FICHIER: test-ollama.ts
 // Script de test pour vérifier les corrections avec Ollama
 
-const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
-const MODEL_NAME = 'gemma3n:e4b';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
 
 interface TestCase {
   input: string;
@@ -116,27 +115,7 @@ const testCases: TestCase[] = [
 
 // Fonction pour appeler Ollama
 async function callOllama(sentence: string): Promise<string> {
-  const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
-
-TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
-1. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
-2. GRAMMAIRE: structure des phrases, ordre des mots
-3. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
-4. ACCORDS: 
-   - Genre/nombre des adjectifs (une pomme vert→une pomme verte)
-   - Participes passés (elle est parti→elle est partie)
-   - Déterminants (un femme→une femme)
-5. SYNTAXE: prépositions, articles (aller à le→aller au)
-6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
-7. HOMOPHONES: mai/mais, a/à, sa/ça, et/est, se/ce, ses/ces/c'est
-
-RÈGLES STRICTES:
-- Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
-- NE JAMAIS changer "on" en "nous" (les deux sont corrects)
-- NE JAMAIS ajouter ou supprimer des mots
-- NE JAMAIS changer la structure de la phrase
-- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
-- Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est`;
+  const system = CORRECTION_SYSTEM_PROMPT;
   
   const prompt = `Phrase avec des fautes: "${sentence}"
 

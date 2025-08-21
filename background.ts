@@ -1,4 +1,6 @@
 // FICHIER: background.ts
+import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt';
+
 interface CorrectionRequest {
   sentence: string;
   fullText: string;
@@ -31,50 +33,12 @@ interface OllamaResponse {
   done: boolean;
 }
 
-const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
-const MODEL_NAME = 'gemma3n:e4b';
-
 // État de l'extension
 let lastError: string | null = null;
 
 // Fonction pour appeler Ollama pour la correction
 async function callOllama(sentence: string, fullText: string, cursorPosition: number): Promise<string> {
-  const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
-
-TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
-1. ESPACES MANQUANTS: Ajoute les espaces manquants (Jene→Je ne, ilfaut→il faut, c'estpas→ce n'est pas)
-2. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
-3. GRAMMAIRE: structure des phrases, ordre des mots
-4. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
-5. ACCORDS: 
-   - Genre/nombre des adjectifs (une pomme vert→une pomme verte)
-   - Participes passés (elle est parti→elle est partie)
-   - Déterminants (un femme→une femme)
-   - Singulier/pluriel (nouvelle ami→nouveaux amis)
-6. SYNTAXE: prépositions, articles (aller à le→aller au)
-7. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
-8. HOMOPHONES: Corrige OBLIGATOIREMENT les confusions entre:
-   - mai/mais (mai = mois, mais = conjonction)
-   - a/à (a = verbe avoir, à = préposition)
-   - sa/ça (sa = possessif, ça = cela)
-   - et/est (et = conjonction, est = verbe être)
-   - se/ce (se = pronom, ce = démonstratif)
-   - ses/ces/c'est
-   - ou/où (ou = choix, où = lieu)
-   - la/là (la = article, là = lieu)
-   - leur/leurs
-   - on/ont
-   - son/sont
-
-RÈGLES STRICTES:
-- Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
-- NE JAMAIS changer "on" en "nous" (les deux sont corrects)
-- NE JAMAIS ajouter ou supprimer des mots
-- NE JAMAIS changer la structure de la phrase
-- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
-- Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est
-- Garde le sens original et le style informel/formel
-- Sois TRÈS attentif aux homophones`;
+  const system = CORRECTION_SYSTEM_PROMPT;
   
   const prompt = `Contexte: "${fullText}"
 
@@ -217,19 +181,10 @@ function getCommonPrefix(str1: string, str2: string): string {
 
 // Fonction pour obtenir des suggestions d'autocomplétion
 async function getCompletions(partialWord: string, fullText: string, position: number): Promise<string[]> {
-  const system = `Tu es un assistant d'autocomplétion expert en français.
+  const system = AUTOCOMPLETION_SYSTEM_PROMPT + `
 
-CAPACITÉS:
-1. Complète les mots commencés
-2. Corrige les fautes d'orthographe (phaute→faute)
-3. Suggère le bon accord (vert→verte si féminin)
-4. Propose la bonne conjugaison (mange→mangent si pluriel)
-5. Corrige les erreurs courantes (sa/ça, et/est, a/à)
-
-RÈGLES:
+RÈGLES SUPPLÉMENTAIRES:
 - Retourne 1-3 suggestions séparées par des virgules
-- Priorise la correction des fautes évidentes
-- Tiens compte du contexte grammatical
 - Format: mot1, mot2, mot3`;
   
   // Extraire plus de contexte autour du mot
