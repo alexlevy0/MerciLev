@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types --no-warnings
+#!/usr/bin/env tsx
 import { execSync } from 'child_process';
 import http from 'http';
 
@@ -29,7 +29,7 @@ async function main() {
 
   // Exécuter le test directement avec Node.js et le flag expérimental
   try {
-    execSync('node --experimental-strip-types --no-warnings test-problematic.ts', { 
+    execSync('tsx test-problematic.ts', { 
       stdio: 'inherit' 
     });
   } catch (error) {

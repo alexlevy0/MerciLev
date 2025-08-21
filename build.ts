@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types --no-warnings
+#!/usr/bin/env tsx
 import { execSync } from 'child_process';
 import { existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';

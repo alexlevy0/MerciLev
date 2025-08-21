@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types --no-warnings
+#!/usr/bin/env tsx
 import { execSync } from 'child_process';
 import http from 'http';
 
@@ -32,7 +32,7 @@ async function main() {
   console.log('');
   
   try {
-    execSync('node --experimental-strip-types --no-warnings test-ollama.ts', { 
+    execSync('tsx test-ollama.ts', { 
       stdio: 'inherit' 
     });
   } catch (error) {
