@@ -61,6 +61,31 @@ const testCases: TestCase[] = [
     input: "Les phaute d'ortographe sont trop nombreuse dans se texte.",
     expected: "Les fautes d'orthographe sont trop nombreuses dans ce texte.",
     description: "Fautes multiples : phaute, accord adjectif, se/ce"
+  },
+  {
+    input: "J'ai pas pu venir parce-que j'étais malade.",
+    expected: "Je n'ai pas pu venir parce que j'étais malade.",
+    description: "Négation et parce que"
+  },
+  {
+    input: "Ils ce sont trompé de chemin pour allez au parc.",
+    expected: "Ils se sont trompés de chemin pour aller au parc.",
+    description: "ce/se, accord participe passé, infinitif"
+  },
+  {
+    input: "Tout les jours, je vais a l'école en vélo.",
+    expected: "Tous les jours, je vais à l'école en vélo.",
+    description: "Tout/Tous et a/à"
+  },
+  {
+    input: "Il y a beaucoup de monde, on n'a pas de place.",
+    expected: "Il y a beaucoup de monde, on n'a pas de place.",
+    description: "Phrase déjà correcte (test de non-modification)"
+  },
+  {
+    input: "Quand est-ce que tu va venir me voir ?",
+    expected: "Quand est-ce que tu vas venir me voir ?",
+    description: "Conjugaison 2e personne singulier"
   }
 ];
 

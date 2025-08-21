@@ -68,8 +68,10 @@ RÈGLES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
 - Garde le sens original et le style
 - Corrige MÊME si l'utilisateur est en train de taper
-- N'ajoute pas de mots non nécessaires
-- Sois TRÈS attentif aux homophones`;
+- N'ajoute JAMAIS de mots qui n'existaient pas dans l'original
+- NE CHANGE PAS la structure de la phrase
+- Sois TRÈS attentif aux homophones
+- Pour C'est/Ces : "C'est" + pluriel = erreur, doit être "Ces"`;
   
   const prompt = `Contexte: "${fullText}"
 
