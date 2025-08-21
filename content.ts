@@ -2,18 +2,17 @@
 interface InputState {
   input: HTMLInputElement | HTMLTextAreaElement;
   overlay: HTMLDivElement;
-  completionBox: HTMLDivElement | null;
   correctedWords: Map<number, {word: string, originalWord: string}>;
   lastValue: string;
   isComposing: boolean;
-  selectedCompletionIndex: number;
-  currentCompletions: string[];
-  partialWord: string;
-  partialWordStart: number;
+  currentSuggestion: string;
+  suggestionStart: number;
   pendingCorrection: AbortController | null;
   lastSpacePosition: number;
   correctionInProgress: boolean;
   completionTimeout?: number;
+  originalValue: string;
+  suggestionElement: HTMLSpanElement | null;
 }
 
 // Map des états pour chaque input
@@ -94,24 +93,15 @@ function createOverlay(input: HTMLInputElement | HTMLTextAreaElement): HTMLDivEl
   return overlay;
 }
 
-// Créer la boîte d'autocomplétion
-function createCompletionBox(): HTMLDivElement {
-  const box = document.createElement('div');
-  box.className = 'completion-box';
-  box.style.cssText = `
-    position: absolute;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    padding: 4px 0;
-    z-index: 10001;
-    display: none;
-    max-width: 300px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+// Créer l'élément de suggestion fantôme
+function createSuggestionElement(): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.className = 'ghost-suggestion';
+  span.style.cssText = `
+    color: #9ca3af;
+    pointer-events: none;
   `;
-  document.body.appendChild(box);
-  return box;
+  return span;
 }
 
 // Mise à jour de la position de l'overlay
@@ -123,9 +113,10 @@ function updateOverlayPosition(input: HTMLInputElement | HTMLTextAreaElement, ov
   overlay.style.height = `${rect.height}px`;
 }
 
-// Mise à jour du contenu de l'overlay avec animations
-function updateOverlayContent(state: InputState) {
+// Mise à jour du contenu de l'overlay avec animations et suggestion
+function updateOverlayContent(state: InputState, showSuggestion: boolean = true) {
   const text = state.input.value;
+  const caretPos = state.input.selectionStart || text.length;
   const words = text.split(/(\s+)/);
   let html = '';
   let charIndex = 0;
@@ -152,6 +143,11 @@ function updateOverlayContent(state: InputState) {
     }
     
     charIndex += word.length;
+  }
+  
+  // Ajouter la suggestion fantôme si on est à la fin du texte
+  if (showSuggestion && state.currentSuggestion && caretPos === text.length && caretPos === state.suggestionStart) {
+    html += `<span class="ghost-suggestion">${escapeHtml(state.currentSuggestion)}</span>`;
   }
   
   state.overlay.innerHTML = html;
@@ -328,29 +324,27 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
 async function handleAutocompletion(state: InputState) {
   // Ne pas faire d'autocomplétion si une correction est en cours
   if (state.correctionInProgress || state.pendingCorrection) {
-    hideCompletionBox(state);
+    hideSuggestion(state);
     return;
   }
   
   const input = state.input;
   const caretPos = input.selectionStart;
   
-  if (!caretPos || state.isComposing) {
-    hideCompletionBox(state);
+  // Autocomplétion seulement si on est à la fin du texte
+  if (!caretPos || state.isComposing || caretPos !== input.value.length) {
+    hideSuggestion(state);
     return;
   }
   
   const text = input.value;
   const wordBounds = getWordBounds(text, caretPos);
   
-  // Ne pas faire d'autocomplétion si on est juste après un espace
+  // Ne pas faire d'autocomplétion si on est juste après un espace ou si le mot est trop court
   if (!wordBounds.word || wordBounds.word.length < 2 || caretPos === state.lastSpacePosition + 1) {
-    hideCompletionBox(state);
+    hideSuggestion(state);
     return;
   }
-  
-  state.partialWord = wordBounds.word;
-  state.partialWordStart = wordBounds.start;
   
   try {
     const response = await chrome.runtime.sendMessage({
@@ -361,89 +355,58 @@ async function handleAutocompletion(state: InputState) {
     });
     
     if (response.suggestions && response.suggestions.length > 0) {
-      showCompletionBox(state, response.suggestions, wordBounds.start);
+      // Prendre la première suggestion et enlever le début qui correspond au mot partiel
+      const firstSuggestion = response.suggestions[0];
+      if (firstSuggestion.startsWith(wordBounds.word)) {
+        const completion = firstSuggestion.substring(wordBounds.word.length);
+        if (completion) {
+          showSuggestion(state, completion, caretPos);
+        } else {
+          hideSuggestion(state);
+        }
+      } else {
+        hideSuggestion(state);
+      }
     } else {
-      hideCompletionBox(state);
+      hideSuggestion(state);
     }
   } catch (error) {
     console.error('Erreur autocomplétion:', error);
-    hideCompletionBox(state);
+    hideSuggestion(state);
   }
 }
 
-// Afficher la boîte de complétion
-function showCompletionBox(state: InputState, suggestions: string[], wordStart: number) {
-  if (!state.completionBox) {
-    state.completionBox = createCompletionBox();
-  }
-  
-  state.currentCompletions = suggestions;
-  state.selectedCompletionIndex = 0;
-  
-  // Créer le contenu HTML
-  let html = '';
-  suggestions.forEach((suggestion, index) => {
-    const isSelected = index === state.selectedCompletionIndex;
-    html += `
-      <div class="completion-item ${isSelected ? 'selected' : ''}" 
-           style="padding: 6px 12px; cursor: pointer; ${isSelected ? 'background: #3b82f6; color: white;' : ''}">
-        ${escapeHtml(suggestion)}
-      </div>
-    `;
-  });
-  
-  state.completionBox.innerHTML = html;
-  state.completionBox.style.display = 'block';
-  
-  // Positionner la boîte
-  const rect = state.input.getBoundingClientRect();
-  const inputStyle = window.getComputedStyle(state.input);
-  const lineHeight = parseFloat(inputStyle.lineHeight);
-  
-  // Estimation approximative de la position du curseur
-  const caretOffset = getCaretCoordinates(state.input, wordStart);
-  
-  state.completionBox.style.left = `${rect.left + caretOffset.left}px`;
-  state.completionBox.style.top = `${rect.top + caretOffset.top + lineHeight}px`;
-}
-
-// Cacher la boîte de complétion
-function hideCompletionBox(state: InputState) {
-  if (state.completionBox) {
-    state.completionBox.style.display = 'none';
-  }
-  state.currentCompletions = [];
-  state.selectedCompletionIndex = 0;
-}
-
-// Accepter la complétion sélectionnée
-function acceptCompletion(state: InputState) {
-  if (state.currentCompletions.length === 0) return;
-  
-  const completion = state.currentCompletions[state.selectedCompletionIndex];
-  const input = state.input;
-  const text = input.value;
-  
-  // Remplacer le mot partiel par la complétion
-  const newText = text.substring(0, state.partialWordStart) + 
-                  completion + 
-                  text.substring(state.partialWordStart + state.partialWord.length);
-  
-  input.value = newText;
-  
-  // Positionner le curseur après la complétion
-  const newPos = state.partialWordStart + completion.length;
-  input.setSelectionRange(newPos, newPos);
-  
-  hideCompletionBox(state);
+// Afficher la suggestion fantôme
+function showSuggestion(state: InputState, suggestion: string, position: number) {
+  state.currentSuggestion = suggestion;
+  state.suggestionStart = position;
+  state.originalValue = state.input.value;
   updateOverlayContent(state);
 }
 
-// Obtenir les coordonnées approximatives du caret (simplifié)
-function getCaretCoordinates(element: HTMLInputElement | HTMLTextAreaElement, position: number) {
-  // Cette fonction est simplifiée. Pour une implémentation complète,
-  // il faudrait utiliser une bibliothèque comme textarea-caret-position
-  return { left: 0, top: 0 };
+// Cacher la suggestion
+function hideSuggestion(state: InputState) {
+  state.currentSuggestion = '';
+  state.suggestionStart = -1;
+  updateOverlayContent(state);
+}
+
+// Accepter la suggestion
+function acceptSuggestion(state: InputState) {
+  if (!state.currentSuggestion) return;
+  
+  const input = state.input;
+  
+  // Ajouter la suggestion au texte
+  input.value = state.originalValue + state.currentSuggestion;
+  
+  // Positionner le curseur à la fin
+  const newPos = input.value.length;
+  input.setSelectionRange(newPos, newPos);
+  
+  // Mettre à jour l'état
+  state.lastValue = input.value;
+  hideSuggestion(state);
 }
 
 // Observer un input/textarea
@@ -456,17 +419,16 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
   const state: InputState = {
     input,
     overlay,
-    completionBox: null,
     correctedWords: new Map(),
     lastValue: input.value,
     isComposing: false,
-    selectedCompletionIndex: 0,
-    currentCompletions: [],
-    partialWord: '',
-    partialWordStart: 0,
+    currentSuggestion: '',
+    suggestionStart: -1,
     pendingCorrection: null,
     lastSpacePosition: -1,
-    correctionInProgress: false
+    correctionInProgress: false,
+    originalValue: input.value,
+    suggestionElement: null
   };
   
   inputStates.set(input, state);
@@ -505,6 +467,14 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
         }
         state.completionTimeout = setTimeout(() => handleAutocompletion(state), 150);
       }
+    } else if (inputEvent.inputType === 'deleteContentBackward' || inputEvent.inputType === 'deleteContentForward') {
+      // Cacher la suggestion si on efface
+      hideSuggestion(state);
+    }
+    
+    // Si le texte change, cacher la suggestion actuelle
+    if (state.currentSuggestion && newValue !== state.originalValue + state.currentSuggestion) {
+      hideSuggestion(state);
     }
     
     state.lastValue = newValue;
@@ -519,24 +489,18 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
       state.pendingCorrection = null;
     }
     
-    if (state.currentCompletions.length > 0) {
-      if (event.key === 'Tab') {
-        event.preventDefault();
-        acceptCompletion(state);
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        state.selectedCompletionIndex = 
-          (state.selectedCompletionIndex + 1) % state.currentCompletions.length;
-        showCompletionBox(state, state.currentCompletions, state.partialWordStart);
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        state.selectedCompletionIndex = 
-          (state.selectedCompletionIndex - 1 + state.currentCompletions.length) % 
-          state.currentCompletions.length;
-        showCompletionBox(state, state.currentCompletions, state.partialWordStart);
-      } else if (event.key === 'Escape') {
-        hideCompletionBox(state);
-      }
+    // Gérer Tab pour accepter la suggestion
+    if (event.key === 'Tab' && state.currentSuggestion) {
+      event.preventDefault();
+      acceptSuggestion(state);
+    } else if (event.key === 'Escape' && state.currentSuggestion) {
+      // Échap pour cacher la suggestion
+      hideSuggestion(state);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || 
+               event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
+               event.key === 'Home' || event.key === 'End') {
+      // Cacher la suggestion si on navigue
+      hideSuggestion(state);
     }
   });
   
@@ -549,16 +513,16 @@ function observeInput(input: HTMLInputElement | HTMLTextAreaElement) {
     state.isComposing = false;
   });
   
-  // Cacher les complétions lors du blur
+  // Cacher la suggestion lors du blur
   input.addEventListener('blur', () => {
-    setTimeout(() => hideCompletionBox(state), 200);
+    setTimeout(() => hideSuggestion(state), 200);
   });
   
   // Mise à jour de la position
   const updatePosition = () => {
     updateOverlayPosition(input, overlay);
-    if (state.completionBox && state.completionBox.style.display !== 'none') {
-      hideCompletionBox(state);
+    if (state.currentSuggestion) {
+      hideSuggestion(state);
     }
   };
   
@@ -629,26 +593,13 @@ style.textContent = `
     animation: correctionPulse 1s ease-in-out;
   }
   
+  .correction-overlay .ghost-suggestion {
+    color: #9ca3af;
+    opacity: 0.7;
+  }
+  
   .correction-error-tooltip {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  }
-  
-  .completion-box {
-    font-size: 14px;
-  }
-  
-  .completion-item {
-    transition: background-color 0.1s;
-  }
-  
-  .completion-item:hover {
-    background-color: #f3f4f6 !important;
-    color: #111827 !important;
-  }
-  
-  .completion-item.selected {
-    background-color: #3b82f6 !important;
-    color: white !important;
   }
 `;
 document.head.appendChild(style);
