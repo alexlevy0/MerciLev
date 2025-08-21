@@ -86,6 +86,21 @@ const testCases: TestCase[] = [
     input: "Quand est-ce que tu va venir me voir ?",
     expected: "Quand est-ce que tu vas venir me voir ?",
     description: "Conjugaison 2e personne singulier"
+  },
+  {
+    input: "Jene vais pas chercher de nouvelle ami.",
+    expected: "Je ne vais pas chercher de nouveaux amis.",
+    description: "Espaces manquants, accord adjectif et nom"
+  },
+  {
+    input: "Ilfaut que jetravaille plus dur.",
+    expected: "Il faut que je travaille plus dur.",
+    description: "Multiples espaces manquants"
+  },
+  {
+    input: "C'estpas facile d'apprendre lefrançais.",
+    expected: "Ce n'est pas facile d'apprendre le français.",
+    description: "Espaces manquants et négation"
   }
 ];
 

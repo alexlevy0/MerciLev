@@ -42,16 +42,18 @@ async function callOllama(sentence: string, fullText: string, cursorPosition: nu
   const system = `Tu es un correcteur expert en français. Tu DOIS corriger TOUTES les erreurs.
 
 TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
-1. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
-2. GRAMMAIRE: structure des phrases, ordre des mots
-3. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
-4. ACCORDS: 
+1. ESPACES MANQUANTS: Ajoute les espaces manquants (Jene→Je ne, ilfaut→il faut, c'estpas→ce n'est pas)
+2. ORTHOGRAPHE: fautes de frappe, lettres manquantes (phaute→faute, bonjoure→bonjour)
+3. GRAMMAIRE: structure des phrases, ordre des mots
+4. CONJUGAISON: temps, modes, personnes (je mange→je mange, ils manges→ils mangent)
+5. ACCORDS: 
    - Genre/nombre des adjectifs (une pomme vert→une pomme verte)
    - Participes passés (elle est parti→elle est partie)
    - Déterminants (un femme→une femme)
-5. SYNTAXE: prépositions, articles (aller à le→aller au)
-6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
-7. HOMOPHONES: Corrige OBLIGATOIREMENT les confusions entre:
+   - Singulier/pluriel (nouvelle ami→nouveaux amis)
+6. SYNTAXE: prépositions, articles (aller à le→aller au)
+7. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
+8. HOMOPHONES: Corrige OBLIGATOIREMENT les confusions entre:
    - mai/mais (mai = mois, mais = conjonction)
    - a/à (a = verbe avoir, à = préposition)
    - sa/ça (sa = possessif, ça = cela)

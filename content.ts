@@ -327,6 +327,9 @@ function updateOverlayContent(state: InputState, showSuggestion: boolean = true)
   }
   
   state.overlay.innerHTML = html;
+  
+  // Forcer la mise à jour de la position de l'overlay
+  updateOverlayPosition(state.element.element, state.overlay);
 }
 
 // Échapper le HTML
@@ -515,28 +518,25 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
 
 // Gérer l'autocomplétion
 async function handleAutocompletion(state: InputState) {
-  // Ne pas faire d'autocomplétion si une correction est en cours
-  if (state.correctionInProgress || state.pendingCorrection) {
-    hideSuggestion(state);
-    return;
-  }
-  
+  // Permettre l'autocomplétion même pendant une correction
   const caretPos = state.element.getCaretPosition();
+  const text = state.element.getValue();
   
   // Autocomplétion seulement si on est à la fin du texte
-  if (!caretPos || state.isComposing || caretPos !== state.element.getValue().length) {
+  if (!caretPos || state.isComposing || caretPos !== text.length) {
     hideSuggestion(state);
     return;
   }
   
-  const text = state.element.getValue();
   const wordBounds = getWordBounds(text, caretPos);
   
-  // Permettre l'autocomplétion même pour des mots très courts (pour corriger "a" en "à" par exemple)
-  if (!wordBounds.word) {
+  // Permettre l'autocomplétion même pour un seul caractère
+  if (!wordBounds.word || wordBounds.word.length < 1) {
     hideSuggestion(state);
     return;
   }
+  
+  console.log('🔍 Autocomplétion pour:', wordBounds.word);
   
   try {
     const response = await chrome.runtime.sendMessage({
@@ -589,6 +589,7 @@ function showSuggestion(state: InputState, suggestion: string, position: number)
   state.currentSuggestion = suggestion;
   state.suggestionStart = position;
   state.originalValue = state.element.getValue();
+  console.log('💡 Suggestion:', suggestion, 'à la position:', position);
   updateOverlayContent(state);
 }
 
@@ -763,13 +764,11 @@ async function handleInput(state: InputState, event: InputEvent) {
       state.pendingCorrection = null;
     }
     
-    // Gérer l'autocomplétion
-    if (!state.correctionInProgress) {
-      if (state.completionTimeout) {
-        clearTimeout(state.completionTimeout);
-      }
-      state.completionTimeout = setTimeout(() => handleAutocompletion(state), 100);
+    // Gérer l'autocomplétion en parallèle (pas besoin d'attendre la correction)
+    if (state.completionTimeout) {
+      clearTimeout(state.completionTimeout);
     }
+    state.completionTimeout = setTimeout(() => handleAutocompletion(state), 50);
   } else if (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward') {
     hideSuggestion(state);
   }
@@ -895,8 +894,9 @@ style.textContent = `
   }
   
   .correction-overlay .ghost-suggestion {
-    color: #9ca3af;
-    opacity: 0.7;
+    color: #9ca3af !important;
+    opacity: 0.7 !important;
+    display: inline !important;
   }
   
   .correction-error-tooltip {
