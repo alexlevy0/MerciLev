@@ -1,0 +1,33 @@
+// FICHIER: manifest.json
+{
+  "manifest_version": 3,
+  "name": "Correcteur Français",
+  "version": "1.0.0",
+  "description": "Corrige automatiquement l'orthographe et la grammaire en français",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:11434/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADpSURBVDiNpZOxDsFQGIW/W1FRQsQgBovJYjV5Ag/gBbyBxWIyGCxegydhsBgMFotBREhFqNv7G1q3rZv2JCe5yf/Pf8755wZQAzpAE6gCpX/kM7ABVsAcGAMLYOsHKQEdYCoiN/dxE5EpkPcgtJx/5eF+AfRAEghSgJZzCoAUkHT3KhBz7gEQdz93KBRAwd23iYgYY0xERGLuXv4AisAQWDpREaAB9P2AiLP3gSEQdkUZYPQjfgQMgIifuAIsnbiTs0PiPg9bICsi6kOeCRtjTpEWqAINp38d1J0+9aAiT5sDO+fzL3gB8q2WgQ0iTdAAAAAASUVORK5CYII=",
+      "32": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAA7AAAAOwBeShxvQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHNSURBVFiFvZe9jtNAEMd/4yROQqJwEg2iQDyCR6BAokB0PIEoeAEaREEBDaJAokAUiALRIAoEEoJPOSeRxHbWF8zaju04d5eT2MrKa+/O/Gdm/jO7BmADLAIrwBIQA9G5LQuBCHgP3AM2TQMLwBvgQkRO3cdJRGZAeA6gAPAQCI6ALZBx40LnJCJnInIqIiciciIiSRGJiEhMRKIiEhaRoGtnM3UAAmANuGoRADfUgKGISERkJiKpnBxnZzY2w5UiADZByb/rqoEYELFxGxGRSRGJFOFoJxbZaBEiQMJGyTKwBsz1AVgCFjJ2OksQKAFQBqAsImMRCQATy0LYSoBU2m/afqtSANxUlAcgJCLjLAANT5jvgTvAakGQArcKSZCUIllGMSVAAUhQCLYzwJMAu8CGY1CygVCOX8DgWYAJkATOWJLe0jx7BSBsBNi1AGJOkqWzAGyBHg9TBCiB3LNV8Cqw7bheWgA+OxJsAwPa4w3IXg/APl+AlJLgKpAEAmCuiQS3HL+ZjgBJpQiw3VDFNqTugJo6cF5fgKljtzsOvJZzD7J7YEXZ0K1OFXRJ+8C8L8ChMncHcA0Y93mBJ0CP5XhbOQZ9AP4BD0ySqJ4hgjAAAAAASUVORK5CYII="
+    }
+  }
+}
