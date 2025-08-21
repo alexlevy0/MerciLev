@@ -103,7 +103,7 @@ async function testConnection(): Promise<{ success: boolean; error?: string; det
       
       if (response.status === 403) {
         error = 'Access forbidden (403)';
-        details = 'L\'accès à Ollama est refusé. Vérifiez la configuration CORS ou les paramètres de sécurité.';
+        details = 'Ollama bloque les requêtes de l\'extension. Redémarrez Ollama avec : OLLAMA_ORIGINS="*" ollama serve';
       } else if (response.status === 404) {
         error = 'Endpoint not found (404)';
         details = 'L\'endpoint Ollama n\'est pas trouvé. Vérifiez que le service est bien démarré.';
@@ -156,7 +156,7 @@ async function testConnection(): Promise<{ success: boolean; error?: string; det
           return { 
             success: false, 
             error: 'Access forbidden (403)',
-            details: 'L\'accès à l\'API Ollama est refusé. Vérifiez les paramètres CORS.'
+            details: 'Ollama bloque les requêtes de l\'extension. Redémarrez Ollama avec : OLLAMA_ORIGINS="*" ollama serve'
           };
         }
       }
@@ -193,7 +193,7 @@ function getErrorDetails(error: string | null): string {
   const errorDetails: Record<string, string> = {
     'Ollama unreachable': 'Impossible de se connecter à Ollama. Assurez-vous qu\'il est démarré avec : ollama serve',
     'Model not found': `Le modèle ${MODEL_NAME} n'est pas installé. Exécutez : ollama pull ${MODEL_NAME}`,
-    'Access forbidden (403)': 'L\'accès à Ollama est refusé. Vérifiez la configuration CORS ou les paramètres de sécurité.',
+    'Access forbidden (403)': 'Ollama bloque les requêtes de l\'extension. Redémarrez Ollama avec : OLLAMA_ORIGINS="*" ollama serve',
     'Authentication required (401)': 'Authentification requise pour accéder à Ollama.',
     'Ollama server error (500)': 'Erreur interne du serveur Ollama.',
     'Bad gateway (502)': 'Problème de passerelle avec Ollama.',

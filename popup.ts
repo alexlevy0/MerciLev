@@ -64,7 +64,7 @@ function getErrorDescription(status: string, details?: string): string {
     case 'Model not found':
       return 'Le modèle gemma3n:e4b n\'est pas installé. Exécutez : ollama pull gemma3n:e4b';
     case 'Access forbidden (403)':
-      return 'L\'accès à Ollama est refusé. Vérifiez la configuration CORS ou les paramètres de sécurité.';
+      return 'Ollama bloque les requêtes de l\'extension. Redémarrez Ollama avec : OLLAMA_ORIGINS="*" ollama serve';
     case 'Authentication required (401)':
       return 'Une authentification est requise pour accéder à Ollama.';
     case 'Ollama server error (500)':
