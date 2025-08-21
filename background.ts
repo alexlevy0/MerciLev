@@ -66,14 +66,15 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
    - on/ont
    - son/sont
 
-RÈGLES:
+RÈGLES STRICTES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
-- Garde le sens original et le style
-- Corrige MÊME si l'utilisateur est en train de taper
-- N'ajoute JAMAIS de mots qui n'existaient pas dans l'original
-- NE CHANGE PAS la structure de la phrase
-- Sois TRÈS attentif aux homophones
-- Pour C'est/Ces : "C'est" + pluriel = erreur, doit être "Ces"`;
+- NE JAMAIS changer "on" en "nous" (les deux sont corrects)
+- NE JAMAIS ajouter ou supprimer des mots
+- NE JAMAIS changer la structure de la phrase
+- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
+- Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est
+- Garde le sens original et le style informel/formel
+- Sois TRÈS attentif aux homophones`;
   
   const prompt = `Contexte: "${fullText}"
 

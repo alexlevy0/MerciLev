@@ -101,6 +101,16 @@ const testCases: TestCase[] = [
     input: "C'estpas facile d'apprendre lefrançais.",
     expected: "Ce n'est pas facile d'apprendre le français.",
     description: "Espaces manquants et négation"
+  },
+  {
+    input: "C'est jours sont importants pour moi.",
+    expected: "Ces jours sont importants pour moi.",
+    description: "C'est + nom pluriel = Ces (cas simple)"
+  },
+  {
+    input: "On a bien travaillé aujourd'hui.",
+    expected: "On a bien travaillé aujourd'hui.",
+    description: "Phrase avec 'on' déjà correcte"
   }
 ];
 
@@ -120,11 +130,13 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
 6. TYPOGRAPHIE: espaces, apostrophes (l'homme→l'homme)
 7. HOMOPHONES: mai/mais, a/à, sa/ça, et/est, se/ce, ses/ces/c'est
 
-RÈGLES:
+RÈGLES STRICTES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
-- Garde le sens original et le style
-- Corrige MÊME si l'utilisateur est en train de taper
-- N'ajoute pas de mots non nécessaires`;
+- NE JAMAIS changer "on" en "nous" (les deux sont corrects)
+- NE JAMAIS ajouter ou supprimer des mots
+- NE JAMAIS changer la structure de la phrase
+- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
+- Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est`;
   
   const prompt = `Phrase avec des fautes: "${sentence}"
 
