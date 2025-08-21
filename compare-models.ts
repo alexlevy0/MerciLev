@@ -229,17 +229,57 @@ function displayDetailedResults(results: ModelResult[]) {
   console.log('\n\n📊 RÉSULTATS DÉTAILLÉS');
   console.log('═'.repeat(80));
 
-  // Afficher les échecs par modèle
+  // Analyser les différences entre modèles
+  const testCount = allTestCases.length;
+  const modelTests = new Map<string, Set<string>>();
+  
   for (const modelResult of results) {
-    const failures = modelResult.results.filter(r => !r.success);
-    if (failures.length > 0) {
-      console.log(`\n❌ Échecs pour ${modelResult.model}:`);
-      for (const failure of failures) {
-        console.log(`   ${failure.test.description}:`);
-        console.log(`     Input:    "${failure.test.input}"`);
-        console.log(`     Attendu:  "${failure.test.expected}"`);
-        console.log(`     Obtenu:   "${failure.output}"`);
-      }
+    const passedTests = new Set(
+      modelResult.results
+        .filter(r => r.success)
+        .map(r => r.test.description)
+    );
+    modelTests.set(modelResult.model, passedTests);
+  }
+
+  // Trouver les tests réussis par tous les modèles
+  const allPassed = allTestCases.filter(test => 
+    Array.from(modelTests.values()).every(tests => tests.has(test.description))
+  );
+
+  // Trouver les tests échoués par tous les modèles
+  const allFailed = allTestCases.filter(test => 
+    Array.from(modelTests.values()).every(tests => !tests.has(test.description))
+  );
+
+  console.log(`\n📊 Résumé des tests (${testCount} tests au total):`);
+  console.log(`   ✅ Réussis par tous: ${allPassed.length} tests`);
+  console.log(`   ❌ Échoués par tous: ${allFailed.length} tests`);
+  console.log(`   ⚡ Différences entre modèles: ${testCount - allPassed.length - allFailed.length} tests`);
+
+  // Afficher les échecs communs
+  if (allFailed.length > 0) {
+    console.log('\n❌ Tests échoués par TOUS les modèles:');
+    for (const test of allFailed) {
+      console.log(`   - ${test.description}`);
+    }
+  }
+
+  // Afficher les différences entre modèles
+  console.log('\n🔄 Différences entre modèles:');
+  for (const test of allTestCases) {
+    const passedBy = results
+      .filter(r => r.results.find(t => t.test.description === test.description)?.success)
+      .map(r => r.model);
+    
+    if (passedBy.length > 0 && passedBy.length < results.length) {
+      const failedBy = results
+        .filter(r => !r.results.find(t => t.test.description === test.description)?.success)
+        .map(r => r.model);
+      
+      console.log(`\n   "${test.description}"`);
+      console.log(`     ✅ Réussi par: ${passedBy.join(', ')}`);
+      console.log(`     ❌ Échoué par: ${failedBy.join(', ')}`);
     }
   }
 }
@@ -251,15 +291,18 @@ function displayComparison(results: ModelResult[]) {
   
   // Tableau de comparaison
   console.log('\n📈 Performance et Précision:\n');
-  console.log('┌─────────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐');
-  console.log('│ Modèle              │ Score    │ Moy (ms) │ Min (ms) │ Max (ms) │ Total(s) │');
-  console.log('├─────────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤');
+  console.log('┌─────────────────────┬────────────┬──────────┬──────────┬──────────┬──────────┐');
+  console.log('│ Modèle              │ Score      │ Moy (ms) │ Min (ms) │ Max (ms) │ Total(s) │');
+  console.log('├─────────────────────┼────────────┼──────────┼──────────┼──────────┼──────────┤');
   
   for (const result of results) {
-    const score = `${result.passed}/${result.passed + result.failed}`;
-    const scorePercent = ((result.passed / (result.passed + result.failed)) * 100).toFixed(0);
+    const total = result.passed + result.failed;
+    const score = `${result.passed}/${total}`;
+    const scorePercent = ((result.passed / total) * 100).toFixed(1);
+    const scoreDisplay = `${score.padEnd(6)} (${scorePercent}%)`;
+    
     console.log(
-      `│ ${result.model.padEnd(19)} │ ${score.padEnd(6)} ${scorePercent}% │ ${
+      `│ ${result.model.padEnd(19)} │ ${scoreDisplay.padEnd(10)} │ ${
         result.avgTime.toFixed(0).padStart(8)
       } │ ${
         result.minTime.toFixed(0).padStart(8)
@@ -270,7 +313,7 @@ function displayComparison(results: ModelResult[]) {
       } │`
     );
   }
-  console.log('└─────────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘');
+  console.log('└─────────────────────┴────────────┴──────────┴──────────┴──────────┴──────────┘');
 
   // Déterminer le meilleur modèle
   const bestAccuracy = results.reduce((best, current) => 
@@ -283,8 +326,15 @@ function displayComparison(results: ModelResult[]) {
   );
 
   console.log('\n🎯 Analyse:');
-  console.log(`   🥇 Meilleure précision: ${bestAccuracy.model} (${((bestAccuracy.passed / (bestAccuracy.passed + bestAccuracy.failed)) * 100).toFixed(0)}%)`);
+  console.log(`   🥇 Meilleure précision: ${bestAccuracy.model} (${((bestAccuracy.passed / (bestAccuracy.passed + bestAccuracy.failed)) * 100).toFixed(1)}%)`);
   console.log(`   ⚡ Plus rapide: ${bestSpeed.model} (${bestSpeed.avgTime.toFixed(0)}ms en moyenne)`);
+  
+  // Différence de vitesse
+  const speedDiff = results.map(r => r.avgTime).sort((a, b) => a - b);
+  if (speedDiff.length > 1) {
+    const speedImprovement = ((speedDiff[1] - speedDiff[0]) / speedDiff[1] * 100).toFixed(1);
+    console.log(`   📊 Différence de vitesse: ${speedImprovement}% plus rapide`);
+  }
   
   // Recommandation
   console.log('\n💡 Recommandation:');
