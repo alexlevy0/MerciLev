@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "description": "Extension Chrome pour la correction orthographique et grammaticale en français",
   "scripts": {
+    "check": "node --experimental-strip-types --no-warnings check-env.ts",
     "build": "node --experimental-strip-types --no-warnings build.ts",
     "test": "node --experimental-strip-types --no-warnings run-tests.ts",
     "test:problematic": "node --experimental-strip-types --no-warnings test-problematic-runner.ts",
-    "dev": "npm run build && npm test"
+    "dev": "npm run build && npm test",
+    "postinstall": "npm run check"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.286",
