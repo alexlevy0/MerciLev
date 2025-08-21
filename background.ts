@@ -1,17 +1,18 @@
 // FICHIER: background.ts
 interface CorrectionRequest {
-  word: string;
-  fullText: string;
   sentence: string;
-  position: number;
+  fullText: string;
+  cursorPosition: number;
+  sentenceStart: number;
   tabId: number;
   inputId: string;
 }
 
 interface CorrectionResponse {
-  correctedWord: string;
-  originalWord: string;
+  correctedSentence: string;
+  originalSentence: string;
   error?: string;
+  corrections: Array<{start: number, end: number, original: string, corrected: string}>;
 }
 
 interface CompletionRequest {
@@ -36,27 +37,27 @@ const MODEL_NAME = 'gemma3n:e4b';
 // État de l'extension
 let lastError: string | null = null;
 
-// Fonction pour appeler Ollama
-async function callOllama(word: string, fullText: string, sentence: string, position: number): Promise<string> {
-  const system = `Tu es un correcteur orthographique et grammatical expert en français. 
+// Fonction pour appeler Ollama pour la correction
+async function callOllama(sentence: string, fullText: string, cursorPosition: number): Promise<string> {
+  const system = `Tu es un correcteur orthographique et grammatical expert en français.
 RÈGLES STRICTES:
-1. Retourne UNIQUEMENT le mot ou groupe de mots corrigé, SANS guillemets ni explications
-2. La correction doit être PROCHE de l'original (même racine, même champ lexical)
-3. Ne jamais remplacer par un mot complètement différent (ex: "tio" ne peut pas devenir "Alexandre")
-4. Respecte la casse originale sauf si c'est une erreur
-5. Tu peux corriger plusieurs mots adjacents si nécessaire pour la grammaire
-6. Privilégie les corrections minimales et logiques dans le contexte`;
+1. Analyse la phrase complète et corrige TOUTES les fautes (orthographe, grammaire, accords)
+2. Retourne UNIQUEMENT la phrase corrigée complète, SANS guillemets ni explications
+3. Les corrections doivent être PROCHES de l'original (même racine, même sens)
+4. Ne jamais changer le sens ou remplacer par des mots sans rapport
+5. Respecte la ponctuation et la casse sauf si c'est une erreur
+6. Tu peux corriger plusieurs mots dans la phrase si nécessaire
+7. Privilégie les corrections minimales et naturelles`;
   
-  const prompt = `Contexte complet du texte:
+  const prompt = `Contexte complet:
 "${fullText}"
 
-Phrase actuelle:
+Phrase à corriger:
 "${sentence}"
 
-Mot ou expression à corriger (position ${position}):
-"${word}"
+Position du curseur dans la phrase: ${cursorPosition}
 
-Corrige UNIQUEMENT cette partie en respectant le sens et la proximité avec l'original.`;
+Corrige TOUTE la phrase en gardant le sens original.`;
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
@@ -111,6 +112,68 @@ Corrige UNIQUEMENT cette partie en respectant le sens et la proximité avec l'or
     }
     throw error;
   }
+}
+
+// Analyser les différences entre deux phrases pour identifier les corrections
+function analyzeDifferences(original: string, corrected: string): Array<{start: number, end: number, original: string, corrected: string}> {
+  const corrections: Array<{start: number, end: number, original: string, corrected: string}> = [];
+  
+  // Algorithme simple de comparaison mot par mot
+  const originalWords = original.split(/(\s+)/);
+  const correctedWords = corrected.split(/(\s+)/);
+  
+  let originalIndex = 0;
+  let correctedIndex = 0;
+  let charPosition = 0;
+  
+  while (originalIndex < originalWords.length && correctedIndex < correctedWords.length) {
+    if (originalWords[originalIndex] === correctedWords[correctedIndex]) {
+      // Pas de changement
+      charPosition += originalWords[originalIndex].length;
+      originalIndex++;
+      correctedIndex++;
+    } else {
+      // Trouver la fin de la différence
+      let endOriginal = originalIndex;
+      let endCorrected = correctedIndex;
+      
+      // Chercher le prochain mot identique
+      let found = false;
+      for (let i = originalIndex; i < originalWords.length && !found; i++) {
+        for (let j = correctedIndex; j < correctedWords.length && !found; j++) {
+          if (originalWords[i] === correctedWords[j] && originalWords[i].trim() !== '') {
+            endOriginal = i;
+            endCorrected = j;
+            found = true;
+          }
+        }
+      }
+      
+      if (!found) {
+        endOriginal = originalWords.length;
+        endCorrected = correctedWords.length;
+      }
+      
+      // Calculer la correction
+      const originalPart = originalWords.slice(originalIndex, endOriginal).join('');
+      const correctedPart = correctedWords.slice(correctedIndex, endCorrected).join('');
+      
+      if (originalPart.trim() || correctedPart.trim()) {
+        corrections.push({
+          start: charPosition,
+          end: charPosition + originalPart.length,
+          original: originalPart,
+          corrected: correctedPart
+        });
+      }
+      
+      charPosition += originalPart.length;
+      originalIndex = endOriginal;
+      correctedIndex = endCorrected;
+    }
+  }
+  
+  return corrections;
 }
 
 // Fonction pour obtenir des suggestions d'autocomplétion
@@ -281,26 +344,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const correctionRequest = request as CorrectionRequest & { type: string };
     
     callOllama(
-      correctionRequest.word, 
-      correctionRequest.fullText, 
-      correctionRequest.sentence, 
-      correctionRequest.position
+      correctionRequest.sentence,
+      correctionRequest.fullText,
+      correctionRequest.cursorPosition
     )
-      .then(correctedWord => {
+      .then(correctedSentence => {
         lastError = null;
         updateBadge(false);
+        
+        // Analyser les différences
+        const corrections = analyzeDifferences(correctionRequest.sentence, correctedSentence);
+        
         sendResponse({
-          correctedWord,
-          originalWord: correctionRequest.word
+          correctedSentence,
+          originalSentence: correctionRequest.sentence,
+          corrections
         } as CorrectionResponse);
       })
       .catch(error => {
         lastError = error.message;
         updateBadge(true);
         sendResponse({
-          correctedWord: correctionRequest.word,
-          originalWord: correctionRequest.word,
-          error: error.message
+          correctedSentence: correctionRequest.sentence,
+          originalSentence: correctionRequest.sentence,
+          error: error.message,
+          corrections: []
         } as CorrectionResponse);
       });
     

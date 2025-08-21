@@ -20,9 +20,17 @@ const inputStates = new Map<HTMLInputElement | HTMLTextAreaElement, InputState>(
 
 // Extraire la phrase actuelle autour de la position du curseur
 function getCurrentSentence(text: string, position: number): string {
-  // Trouver le début de la phrase
+  // Trouver le début de la phrase (après . ! ? ou début du texte)
   let start = position;
-  while (start > 0 && !'.!?'.includes(text[start - 1])) {
+  while (start > 0) {
+    const char = text[start - 1];
+    if ('.!?'.includes(char)) {
+      // Ignorer les espaces après la ponctuation
+      while (start < text.length && text[start] === ' ') {
+        start++;
+      }
+      break;
+    }
     start--;
   }
   
@@ -31,9 +39,23 @@ function getCurrentSentence(text: string, position: number): string {
   while (end < text.length && !'.!?'.includes(text[end])) {
     end++;
   }
-  if (end < text.length) end++; // Inclure la ponctuation
   
-  return text.substring(start, end).trim();
+  // Inclure la ponctuation finale si elle existe
+  if (end < text.length && '.!?'.includes(text[end])) {
+    end++;
+  }
+  
+  const sentence = text.substring(start, end).trim();
+  
+  // Si la phrase est très courte ou très longue, essayer de prendre un contexte plus raisonnable
+  if (sentence.length < 10 && position > 0) {
+    // Prendre plus de contexte si la phrase est trop courte
+    const extendedStart = Math.max(0, position - 100);
+    const extendedEnd = Math.min(text.length, position + 50);
+    return text.substring(extendedStart, extendedEnd).trim();
+  }
+  
+  return sentence;
 }
 
 // Trouver les limites du mot à une position donnée
@@ -233,10 +255,11 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   const input = state.input;
   const text = input.value;
   
-  // Trouver le mot précédent l'espace
-  const wordBounds = getWordBounds(text, spacePosition - 1);
+  // Extraire la phrase courante
+  const sentence = getCurrentSentence(text, spacePosition);
+  const sentenceStart = text.lastIndexOf(sentence, spacePosition);
   
-  if (!wordBounds.word || wordBounds.word.length < 2) {
+  if (!sentence || sentence.trim().length < 3) {
     return;
   }
   
@@ -249,14 +272,12 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   state.pendingCorrection = abortController;
   
   try {
-    const sentence = getCurrentSentence(text, spacePosition);
-    
     const response = await chrome.runtime.sendMessage({
       type: 'correct-word',
-      word: wordBounds.word,
-      fullText: text,
       sentence: sentence,
-      position: wordBounds.start,
+      fullText: text,
+      cursorPosition: spacePosition - sentenceStart,
+      sentenceStart: sentenceStart,
       tabId: chrome.runtime.id,
       inputId: input.id || 'unknown'
     });
@@ -275,36 +296,41 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       return;
     }
     
-    // Vérifier que le mot n'a pas déjà été modifié
-    const currentWordBounds = getWordBounds(currentText, wordBounds.start);
-    if (currentWordBounds.word !== wordBounds.word) {
-      return;
-    }
-    
     if (response.error) {
       showErrorTooltip(input, response.error);
       return;
     }
     
-    if (response.correctedWord !== wordBounds.word) {
-      // Remplacer le mot
-      const newText = currentText.substring(0, wordBounds.start) + 
-                     response.correctedWord + 
-                     currentText.substring(wordBounds.end);
+    // Appliquer les corrections si la phrase a changé
+    if (response.correctedSentence !== sentence && response.corrections && response.corrections.length > 0) {
+      // Reconstruire le texte avec la phrase corrigée
+      const newText = currentText.substring(0, sentenceStart) + 
+                     response.correctedSentence + 
+                     currentText.substring(sentenceStart + sentence.length);
       
       input.value = newText;
       
-      // Repositionner le caret juste après l'espace
-      const lengthDiff = response.correctedWord.length - wordBounds.word.length;
+      // Calculer la nouvelle position du curseur
+      let lengthDiff = 0;
+      for (const correction of response.corrections) {
+        if (sentenceStart + correction.start < spacePosition) {
+          lengthDiff += correction.corrected.length - correction.original.length;
+        }
+      }
+      
       const newCaretPos = state.lastSpacePosition + lengthDiff;
       input.setSelectionRange(newCaretPos, newCaretPos);
       
-      // Enregistrer la correction avec timestamp pour l'animation
-      state.correctedWords.set(wordBounds.start, {
-        word: response.correctedWord,
-        originalWord: wordBounds.word,
-        timestamp: Date.now()
-      } as any);
+      // Enregistrer toutes les corrections avec timestamp pour l'animation
+      const now = Date.now();
+      for (const correction of response.corrections) {
+        const globalStart = sentenceStart + correction.start;
+        state.correctedWords.set(globalStart, {
+          word: correction.corrected,
+          originalWord: correction.original,
+          timestamp: now
+        } as any);
+      }
       
       updateOverlayContent(state);
     }
