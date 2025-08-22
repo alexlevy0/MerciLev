@@ -1,5 +1,5 @@
 // FICHIER: background.ts
-import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, MODELS, DEFAULT_MODEL, setModel, ModelName } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, MODELS, DEFAULT_MODEL, setModel, ModelName, getModelOptions } from './ollama-prompt.ts';
 
 interface CorrectionRequest {
   sentence: string;
@@ -69,7 +69,8 @@ Retourne la phrase corrigée.`;
         model: MODEL_NAME,
         system: system,
         prompt: prompt,
-        stream: false
+        stream: false,
+        options: getModelOptions(MODEL_NAME)
       })
     });
 
@@ -218,7 +219,8 @@ Suggère la complétion ou correction la plus probable en tenant compte de la gr
         model: MODEL_NAME,
         system: system,
         prompt: prompt,
-        stream: false
+        stream: false,
+        options: getModelOptions(MODEL_NAME)
       })
     });
 
@@ -293,7 +295,8 @@ async function testConnection(): Promise<{ success: boolean; error?: string; det
         body: JSON.stringify({
           model: MODEL_NAME,
           prompt: 'test',
-          stream: false
+          stream: false,
+          options: getModelOptions(MODEL_NAME)
         })
       });
       

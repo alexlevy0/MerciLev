@@ -1,6 +1,6 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings
 
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, getModelOptions } from './ollama-prompt.ts';
 import * as http from 'http';
 
 // Les 3 cas qui échouent
@@ -75,7 +75,8 @@ async function testSpecificCases() {
         model: MODEL_NAME,
         system: CORRECTION_SYSTEM_PROMPT,
         prompt: `Phrase à corriger: "${test.input}"`,
-        stream: false
+        stream: false,
+        options: getModelOptions(MODEL_NAME)
       });
 
       console.log('   ⏳ Envoi de la requête...');
@@ -149,7 +150,8 @@ async function checkOllama(): Promise<boolean> {
     await makeRequest(JSON.stringify({
       model: MODEL_NAME,
       prompt: 'test',
-      stream: false
+      stream: false,
+      options: getModelOptions(MODEL_NAME)
     }));
     return true;
   } catch {

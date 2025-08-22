@@ -3,7 +3,10 @@
 ## Prérequis
 
 - Node.js 24+ et npm installés (pour le support TypeScript natif)
-- Ollama installé avec le modèle `gemma3n:e4b`
+- Ollama installé avec l'un des modèles suivants :
+  - `gemma3n:e2b` (par défaut, rapide et précis)
+  - `gemma3n:e4b` (précision maximale)
+  - `granite-embedding:278m` (ultra-léger, avec `num_ctx: 512`)
 
 ## Installation
 

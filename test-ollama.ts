@@ -1,7 +1,7 @@
 // FICHIER: test-ollama.ts
 // Script de test pour vérifier les corrections avec Ollama
 
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, setModel, MODELS } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, setModel, MODELS, getModelOptions } from './ollama-prompt.ts';
 
 // Utiliser le modèle spécifié par l'environnement si disponible
 if (process.env.OLLAMA_MODEL) {
@@ -140,7 +140,8 @@ Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords, homopho
         model: MODEL_NAME,
         system: system,
         prompt: prompt,
-        stream: false
+        stream: false,
+        options: getModelOptions(MODEL_NAME)
       })
     });
 

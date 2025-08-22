@@ -1,6 +1,6 @@
 // Test rapide pour les cas problématiques
 import * as http from 'http';
-import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, setModel, MODELS } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, setModel, MODELS, getModelOptions } from './ollama-prompt.ts';
 
 // Utiliser le modèle spécifié par l'environnement si disponible
 if (process.env.OLLAMA_MODEL) {
@@ -97,7 +97,8 @@ async function testProblematicCases() {
           model: MODEL_NAME,
           system: system,
           prompt: `Phrase avec des fautes: "${test.input}"\n\nCorrige TOUTES les fautes. ATTENTION: Pour "C'est" + nom pluriel, corrige en "Ces". Ne change JAMAIS "on" en "nous".`,
-          stream: false
+          stream: false,
+          options: getModelOptions(MODEL_NAME)
         });
 
         const startTime = performance.now();
