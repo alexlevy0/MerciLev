@@ -1,6 +1,7 @@
 #!/usr/bin/env -S node --experimental-strip-types --no-warnings
 
-import { CORRECTION_SYSTEM_PROMPT, MODELS, OLLAMA_ENDPOINT, ModelName, setModel } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODELS, OLLAMA_ENDPOINT, setModel } from './ollama-prompt.ts';
+import type { ModelName } from './ollama-prompt.ts';
 import * as http from 'http';
 import { performance } from 'perf_hooks';
 
