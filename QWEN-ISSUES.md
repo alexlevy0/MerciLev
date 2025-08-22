@@ -55,12 +55,28 @@ Output: "Il y a beaucoup de monde, nous n'avons pas de place."  ❌
 }
 ```
 
-### Prompt renforcé
+### Prompt ultra-simplifié (v2)
 
-1. **Anti-guillemets** : Instruction explicite
-2. **Anti-reformulation** : Garder la structure
-3. **Exemples** : Sans guillemets dans les exemples
-4. **Température** : Réduite pour plus de cohérence
+```typescript
+if (MODEL_NAME === 'qwen2.5:3b') {
+  system = 'Tu corriges les fautes de français. Réponds UNIQUEMENT avec la phrase corrigée.';
+  prompt = sentence; // Juste la phrase, pas de contexte
+}
+```
+
+### Nettoyage automatique des guillemets
+
+```typescript
+// Enlever les guillemets ajoutés par Qwen
+result = result.replace(/^[""]|[""]$/g, '');
+result = result.replace(/^""|""$/g, '');
+```
+
+### Approche en 3 étapes
+
+1. **Prompt minimal** : Plus c'est simple, mieux c'est
+2. **Pas de contexte** : Juste la phrase à corriger
+3. **Post-traitement** : Nettoyer les guillemets automatiquement
 
 ## 📊 Comparaison des erreurs
 

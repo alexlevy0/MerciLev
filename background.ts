@@ -40,15 +40,21 @@ chrome.storage.sync.get(['model'], (result) => {
 
 // Fonction pour appeler Ollama pour la correction
 async function callOllama(sentence: string, fullText: string, cursorPosition: number): Promise<string> {
-  const system = CORRECTION_SYSTEM_PROMPT;
-  
-  const prompt = `Contexte: "${fullText}"
+  // Prompt spécial pour Qwen qui a des problèmes spécifiques
+  let system = CORRECTION_SYSTEM_PROMPT;
+  let prompt = `Contexte: "${fullText}"
 
 Phrase avec des fautes: "${sentence}"
 
 Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords, HOMOPHONES). 
 ATTENTION SPÉCIALE aux homophones comme mai/mais, a/à, sa/ça, etc.
 Retourne la phrase corrigée.`;
+  
+  if (MODEL_NAME === 'qwen2.5:3b') {
+    // Prompt ultra-simple pour Qwen pour éviter les guillemets et reformulations
+    system = 'Tu corriges les fautes de français. Réponds UNIQUEMENT avec la phrase corrigée.';
+    prompt = sentence;
+  }
 
   try {
     const response = await fetch(OLLAMA_ENDPOINT, {
@@ -97,7 +103,17 @@ Retourne la phrase corrigée.`;
     }
 
     const data: OllamaResponse = await response.json();
-    return data.response.trim();
+    let result = data.response.trim();
+    
+    // Nettoyer la réponse de Qwen qui ajoute des guillemets
+    if (MODEL_NAME === 'qwen2.5:3b') {
+      // Enlever les guillemets au début et à la fin
+      result = result.replace(/^[""]|[""]$/g, '');
+      // Enlever les doubles guillemets
+      result = result.replace(/^""|""$/g, '');
+    }
+    
+    return result;
   } catch (error: any) {
     if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
       throw new Error('Ollama unreachable');
