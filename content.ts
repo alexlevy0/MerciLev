@@ -25,6 +25,8 @@ interface InputState {
     correctionCount: number;
     cacheHits: number;
   };
+  queryStartTime?: number;
+  liveTimerInterval?: NodeJS.Timeout;
 }
 
 // Map des états pour chaque élément éditable
@@ -35,11 +37,32 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
   const indicator = document.createElement('div');
   indicator.className = 'ollama-status hidden';
   indicator.innerHTML = `
-    <div class="ollama-status-icon"></div>
-    <span class="ollama-status-text">Prêt</span>
-    <span class="ollama-status-time"></span>
-    <span class="ollama-status-count">0</span>
+    <div class="ollama-status-main">
+      <div class="ollama-status-icon"></div>
+      <span class="ollama-status-text">Prêt</span>
+      <span class="ollama-status-time"></span>
+      <span class="ollama-status-timer"></span>
+      <span class="ollama-status-count">0</span>
+    </div>
     <div class="ollama-status-details"></div>
+    <div class="ollama-status-expanded-info">
+      <div class="ollama-status-info-row">
+        <span class="ollama-status-info-label">Modèle:</span>
+        <span class="ollama-status-info-value" id="status-model">-</span>
+      </div>
+      <div class="ollama-status-info-row">
+        <span class="ollama-status-info-label">Phrase analysée:</span>
+        <span class="ollama-status-info-value" id="status-sentence" style="font-size: 11px; white-space: normal; max-width: 200px;">-</span>
+      </div>
+      <div class="ollama-status-info-row">
+        <span class="ollama-status-info-label">Temps réponse:</span>
+        <span class="ollama-status-info-value" id="status-response-time">-</span>
+      </div>
+      <div class="ollama-status-info-row">
+        <span class="ollama-status-info-label">Cache utilisé:</span>
+        <span class="ollama-status-info-value" id="status-cache">Non</span>
+      </div>
+    </div>
   `;
   
   // Positionner l'indicateur selon le type d'élément
@@ -51,6 +74,12 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
   if (rect.width < 300 || rect.height < 40) {
     indicator.classList.add('compact');
   }
+  
+  // Gérer le clic pour expansion
+  indicator.addEventListener('click', (e) => {
+    e.stopPropagation();
+    indicator.classList.toggle('expanded');
+  });
   
   if (wrapper.type === 'contenteditable' || wrapper.type === 'custom') {
     // Pour contenteditable, positionner en fixed
@@ -105,12 +134,13 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
 }
 
 // Mettre à jour l'indicateur de statut
-function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | 'processing' | 'error' | 'cached', text?: string, time?: number) {
+function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | 'processing' | 'error' | 'cached', text?: string, time?: number, sentence?: string) {
   if (!state.statusIndicator || !isExtensionValid()) return;
   
   const indicator = state.statusIndicator;
   const textElement = indicator.querySelector('.ollama-status-text') as HTMLElement;
   const timeElement = indicator.querySelector('.ollama-status-time') as HTMLElement;
+  const timerElement = indicator.querySelector('.ollama-status-timer') as HTMLElement;
   const countElement = indicator.querySelector('.ollama-status-count') as HTMLElement;
   const detailsElement = indicator.querySelector('.ollama-status-details') as HTMLElement;
   
@@ -140,12 +170,27 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
       indicator.classList.add('loading');
       textElement.textContent = text || 'Connexion...';
       detailsElement.textContent = `Requête #${totalQueries + 1}`;
+      
+      // Démarrer le timer
+      state.queryStartTime = performance.now();
+      if (state.liveTimerInterval) {
+        clearInterval(state.liveTimerInterval);
+      }
+      state.liveTimerInterval = setInterval(() => {
+        if (state.queryStartTime) {
+          const elapsed = Math.round(performance.now() - state.queryStartTime);
+          timerElement.textContent = `${elapsed}ms`;
+        }
+      }, 100);
+      
       break;
     case 'processing':
       indicator.classList.remove('hidden');
       indicator.classList.add('processing');
       textElement.textContent = text || 'Analyse...';
       detailsElement.textContent = `Moy: ${avgTime}ms | Cache: ${cacheRate}%`;
+      
+      // Le timer continue de tourner
       break;
     case 'error':
       indicator.classList.remove('hidden');
@@ -168,12 +213,44 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
       break;
   }
   
+  // Arrêter le timer si nécessaire
+  if (status === 'idle' || status === 'error' || status === 'cached') {
+    if (state.liveTimerInterval) {
+      clearInterval(state.liveTimerInterval);
+      state.liveTimerInterval = undefined;
+    }
+    timerElement.textContent = '';
+  }
+  
+  // Mettre à jour les infos détaillées
+  if (sentence) {
+    const sentenceEl = indicator.querySelector('#status-sentence') as HTMLElement;
+    if (sentenceEl) {
+      sentenceEl.textContent = sentence.length > 50 ? sentence.substring(0, 50) + '...' : sentence;
+    }
+  }
+  
+  // Mettre à jour le modèle actuel
+  chrome.runtime.sendMessage({ type: 'get-current-model' }, (response) => {
+    const modelEl = indicator.querySelector('#status-model') as HTMLElement;
+    if (modelEl && response?.model) {
+      modelEl.textContent = response.model;
+    }
+  });
+  
   // Afficher le temps avec animation
   if (time !== undefined && timeElement) {
     if (time === 0) {
       timeElement.innerHTML = '<span class="instant">0ms</span>';
     } else {
       timeElement.textContent = `${time}ms`;
+      
+      // Mettre à jour le temps de réponse dans les détails
+      const responseTimeEl = indicator.querySelector('#status-response-time') as HTMLElement;
+      if (responseTimeEl) {
+        responseTimeEl.textContent = `${time}ms`;
+      }
+      
       // Animation pour les temps longs
       if (time > 5000) {
         timeElement.classList.add('slow');
@@ -633,7 +710,13 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   const cached = correctionCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     state.performanceStats.cacheHits++;
-    updateStatusIndicator(state, 'cached', 'Cache', 0);
+    updateStatusIndicator(state, 'cached', 'Cache', 0, sentence);
+    
+    // Mettre à jour l'info de cache
+    const cacheEl = state.statusIndicator?.querySelector('#status-cache') as HTMLElement;
+    if (cacheEl) {
+      cacheEl.textContent = 'Oui';
+    }
     
     // Appliquer la correction depuis le cache
     if (cached.result !== sentence) {
@@ -683,7 +766,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     state.correctionInProgress = true;
     
     // Afficher l'indicateur de chargement
-    updateStatusIndicator(state, 'loading', 'Connexion...');
+    updateStatusIndicator(state, 'loading', 'Connexion...', undefined, sentence);
     
     // Créer un AbortController pour pouvoir annuler cette correction
     const abortController = new AbortController();
@@ -692,7 +775,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     const startTime = performance.now();
   
   try {
-    updateStatusIndicator(state, 'processing', 'Analyse...');
+    updateStatusIndicator(state, 'processing', 'Analyse...', undefined, sentence);
     
     let response;
     try {
@@ -1458,24 +1541,71 @@ style.textContent = `
   /* Hover pour voir plus de détails */
   .ollama-status:hover {
     pointer-events: auto;
-    cursor: default;
+    cursor: pointer;
     transform: translateY(-50%) scale(1.05);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    height: auto;
+    min-height: 32px;
+    max-height: 200px;
+  }
+  
+  .ollama-status.expanded {
+    height: auto !important;
+    background: rgba(0, 0, 0, 0.95);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    padding: 12px 16px;
+  }
+  
+  .ollama-status-timer {
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 14px;
+    color: #64b5f6;
+    font-weight: bold;
+    margin-left: 8px;
+    display: none;
+    min-width: 60px;
+  }
+  
+  .ollama-status.processing .ollama-status-timer,
+  .ollama-status.loading .ollama-status-timer {
+    display: inline-block !important;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  
+  .ollama-status-expanded-info {
+    display: none;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  
+  .ollama-status:hover .ollama-status-expanded-info,
+  .ollama-status.expanded .ollama-status-expanded-info {
+    display: block;
+  }
+  
+  .ollama-status-info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 0;
+    color: white;
+  }
+  
+  .ollama-status-info-label {
+    color: rgba(255, 255, 255, 0.7);
+    margin-right: 12px;
+  }
+  
+  .ollama-status-info-value {
+    color: #ffffff;
+    font-weight: 500;
+    text-align: right;
   }
   
   .ollama-status:hover .ollama-status-details {
-    display: block;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 8px;
-    margin-top: 4px;
-    font-size: 11px;
-    white-space: nowrap;
-    z-index: 10002;
+    display: none;
   }
   
   @keyframes correctionPulse {
@@ -1579,6 +1709,9 @@ function cleanup() {
     }
     if (state.pendingCorrection) {
       state.pendingCorrection.abort();
+    }
+    if (state.liveTimerInterval) {
+      clearInterval(state.liveTimerInterval);
     }
   }
   elementStates.clear();
