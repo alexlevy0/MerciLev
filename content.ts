@@ -161,8 +161,16 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
         // Ne pas masquer si on vient d'afficher un résultat
         indicator.classList.remove('hidden');
         textElement.textContent = text || 'OK';
+        // Masquer après 5 secondes
+        setTimeout(() => {
+          if (indicator.classList.contains('idle') && !indicator.classList.contains('expanded')) {
+            indicator.classList.add('hidden');
+          }
+        }, 5000);
       } else {
-        indicator.classList.add('hidden');
+        // Ne jamais masquer automatiquement pendant le traitement
+        indicator.classList.remove('hidden');
+        textElement.textContent = text || 'Prêt';
       }
       break;
     case 'loading':
@@ -665,8 +673,8 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
 let correctionTimeout: NodeJS.Timeout | null = null;
 let countdownInterval: NodeJS.Timeout | null = null;
 
-// Délai avant correction (1.5s en production, 0 pour les tests)
-const CORRECTION_DELAY = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' ? 0 : 1500;
+// Délai avant correction (800ms en production, 0 pour les tests)
+const CORRECTION_DELAY = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' ? 0 : 800;
 
 // Gérer la correction lors de l'espace
 async function handleSpacePress(state: InputState, spacePosition: number) {
@@ -737,12 +745,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   // Si délai > 0, afficher le compte à rebours
   if (CORRECTION_DELAY > 0) {
     // Afficher un indicateur d'attente
-    updateStatusIndicator(state, 'idle', `Attente 1.5s...`, 0);
-    
-    // Après 0.75s, mettre à jour pour montrer qu'on arrive bientôt
-    countdownInterval = setTimeout(() => {
-      updateStatusIndicator(state, 'idle', `Analyse...`, 0);
-    }, 750);
+    updateStatusIndicator(state, 'idle', `Attente...`, 0);
   }
   
   // Fonction de correction
@@ -1310,13 +1313,15 @@ const ERROR_PATTERNS = {
   // Espaces manquants
   missingSpaces: /[a-zàâäéèêëïîôùûüÿç][A-Z]|[a-z](ne|est|pas|mais|donc|puis|car|que)[a-z]/i,
   // Homophones courants
-  homophones: /\b(sa va|a la |mais pas|c'est [a-z]+s sont|tout les|ce sont trompé|pour allez)\b/i,
+  homophones: /\b(sa va|a la |mai je|mai tu|mai il|mais pas|c'est [a-z]+s sont|tout les|ce sont trompé|pour allez)\b/i,
   // Fautes courantes
   commonErrors: /\b(phaute|ecole|ecrire|apres|tres|francais|etre|hopital|etat|etait|ca va|ilfaut|jene|c'estpas)\b/i,
   // Accords suspects
   suspectAgreements: /\b(un[e]? \w+s|des? \w+[^s])\b/i,
   // Conjugaison suspecte
-  suspectConjugation: /\b(tu va[^s]|il \w+s|elle \w+s|ils \w+[^nt]|elles \w+[^nt])\b/i
+  suspectConjugation: /\b(tu va[^s]|tu es[^t]|il \w+s|elle \w+s|ils \w+[^nt]|elles \w+[^nt])\b/i,
+  // Qui es/est
+  quiEs: /\b(qui es|quies)\b/i
 };
 
 // Analyse rapide pour détecter les erreurs potentielles
@@ -1379,6 +1384,14 @@ style.textContent = `
   .ollama-status.hidden {
     opacity: 0;
     transform: translateY(-50%) scale(0.9);
+  }
+  
+  /* Toujours visible pendant le traitement */
+  .ollama-status.loading,
+  .ollama-status.processing {
+    opacity: 1 !important;
+    transform: translateY(-50%) scale(1) !important;
+    pointer-events: auto !important;
   }
   
   .ollama-status.fading {

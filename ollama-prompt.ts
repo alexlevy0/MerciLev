@@ -50,6 +50,10 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
 
 RÈGLES STRICTES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
+- NE JAMAIS ajouter de formatage markdown (pas de **, *, __, ~~, backticks, etc.)
+- NE JAMAIS mettre en gras, italique, souligné ou barré
+- CONSERVER le formatage UNIQUEMENT s'il existait déjà dans l'original
+- Renvoyer du TEXTE BRUT sans aucun enrichissement typographique
 - NE JAMAIS changer "on" en "nous" (les deux sont corrects)
 - NE JAMAIS ajouter ou supprimer des mots SAUF:
   * Pour ajouter des espaces manquants ("Jene" → "Je ne")
