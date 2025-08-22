@@ -109,7 +109,28 @@ export function setModel(model: ModelName) {
   MODEL_NAME = model;
 }
 
-export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
+// Configuration des endpoints
+export const OLLAMA_ENDPOINTS = {
+  local: 'http://localhost:11434/api/generate',
+  // Remplacez par votre URL si vous utilisez un serveur cloud
+  cloud: process.env.OLLAMA_CLOUD_URL || 'https://ollama.example.com/api/generate'
+};
+
+// Endpoint actuel (changez 'local' par 'cloud' pour utiliser le serveur distant)
+export const OLLAMA_ENDPOINT = OLLAMA_ENDPOINTS.local;
+
+// Pour changer dynamiquement d'endpoint
+export function getEndpoint(): string {
+  // Vérifier d'abord si un endpoint custom est sauvegardé
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.sync.get('customEndpoint', (result) => {
+      if (result.customEndpoint) {
+        return result.customEndpoint;
+      }
+    });
+  }
+  return OLLAMA_ENDPOINT;
+}
 
 // Configuration des options par modèle
 export const MODEL_OPTIONS: Record<ModelName, any> = {
