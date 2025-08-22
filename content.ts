@@ -81,54 +81,8 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
     indicator.classList.toggle('expanded');
   });
   
-  if (wrapper.type === 'contenteditable' || wrapper.type === 'custom') {
-    // Pour contenteditable, positionner en fixed
-    document.body.appendChild(indicator);
-    indicator.style.position = 'fixed';
-    
-    const updatePosition = () => {
-      const newRect = element.getBoundingClientRect();
-      const indicatorWidth = 200;
-      let left = newRect.right - indicatorWidth;
-      let top = newRect.top + 5;
-      
-      // Ajuster si dépassement de l'écran
-      if (left < 10) left = 10;
-      if (left + indicatorWidth > window.innerWidth - 10) {
-        left = window.innerWidth - indicatorWidth - 10;
-      }
-      
-      indicator.style.left = `${left}px`;
-      indicator.style.top = `${top}px`;
-    };
-    
-    updatePosition();
-    
-    // Mettre à jour lors du scroll/resize
-    let updateTimeout: number | undefined;
-    const debouncedUpdate = () => {
-      if (updateTimeout) clearTimeout(updateTimeout);
-      updateTimeout = setTimeout(updatePosition, 10);
-    };
-    
-    window.addEventListener('scroll', debouncedUpdate, { passive: true });
-    window.addEventListener('resize', debouncedUpdate, { passive: true });
-    
-    // Nettoyer l'indicateur si l'élément est supprimé
-    const observer = new MutationObserver(() => {
-      if (!document.contains(element)) {
-        indicator.remove();
-        window.removeEventListener('scroll', debouncedUpdate);
-        window.removeEventListener('resize', debouncedUpdate);
-        observer.disconnect();
-      }
-    });
-    observer.observe(element.parentElement || document.body, { childList: true, subtree: true });
-  } else if (parent) {
-    // Pour input/textarea standard
-    parent.style.position = 'relative';
-    parent.appendChild(indicator);
-  }
+  // Toujours ajouter l'indicateur au body en position fixed en bas à droite
+  document.body.appendChild(indicator);
   
   return indicator;
 }
@@ -1070,37 +1024,6 @@ function observeEditableElement(element: HTMLElement) {
   
   elementStates.set(element, state);
   
-  // Observer le redimensionnement pour les contenteditable
-  if (wrapper.type === 'contenteditable' || wrapper.type === 'custom') {
-    if (typeof ResizeObserver !== 'undefined') {
-      const resizeObserver = new ResizeObserver(() => {
-        if (state.statusIndicator && !state.statusIndicator.classList.contains('hidden')) {
-          const rect = element.getBoundingClientRect();
-          const indicatorWidth = 200;
-          let left = rect.right - indicatorWidth;
-          let top = rect.top + 5;
-          
-          // Ajuster si dépassement
-          if (left < 10) left = 10;
-          if (left + indicatorWidth > window.innerWidth - 10) {
-            left = window.innerWidth - indicatorWidth - 10;
-          }
-          
-          state.statusIndicator.style.left = `${left}px`;
-          state.statusIndicator.style.top = `${top}px`;
-          
-          // Mettre à jour le mode compact si nécessaire
-          if (rect.width < 300 || rect.height < 40) {
-            state.statusIndicator.classList.add('compact');
-          } else {
-            state.statusIndicator.classList.remove('compact');
-          }
-        }
-      });
-      resizeObserver.observe(element);
-    }
-  }
-  
   // Observer les changements selon le type d'élément
   if (wrapper.type === 'input' || wrapper.type === 'textarea') {
     observeInputElement(element as HTMLInputElement | HTMLTextAreaElement, state);
@@ -1360,43 +1283,85 @@ style.textContent = `
   }
   
   .ollama-status {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
+    position: fixed !important;
+    bottom: 24px !important;
+    right: 24px !important;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 250, 251, 0.98) 100%);
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 16px;
-    font-size: 12px;
-    font-family: system-ui, -apple-system, sans-serif;
-    color: #374151;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-    z-index: 10001;
-    pointer-events: none;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #ffffff;
+    box-shadow: 
+      0 4px 30px rgba(0, 0, 0, 0.3),
+      0 8px 32px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    z-index: 2147483647 !important;
+    pointer-events: auto;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    backdrop-filter: blur(8px);
+    transform: translateY(0);
+    animation: slideInUp 0.3s ease-out;
+  }
+  
+  @keyframes slideInUp {
+    from {
+      transform: translateY(100px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
   
   .ollama-status.hidden {
     opacity: 0;
-    transform: translateY(-50%) scale(0.9);
+    transform: translateY(100px);
+    pointer-events: none;
   }
   
   /* Toujours visible pendant le traitement */
   .ollama-status.loading,
   .ollama-status.processing {
     opacity: 1 !important;
-    transform: translateY(-50%) scale(1) !important;
+    transform: translateY(0) !important;
     pointer-events: auto !important;
   }
   
   .ollama-status.fading {
     opacity: 0;
-    transform: translateY(-50%) translateX(20px);
+    transform: translateY(20px);
+  }
+  
+  /* États avec couleurs */
+  .ollama-status.loading {
+    background: rgba(59, 130, 246, 0.9);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(147, 197, 253, 0.3);
+  }
+  
+  .ollama-status.processing {
+    background: rgba(139, 92, 246, 0.9);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(196, 181, 253, 0.3);
+  }
+  
+  .ollama-status.error {
+    background: rgba(239, 68, 68, 0.9);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(252, 165, 165, 0.3);
+  }
+  
+  .ollama-status.cached {
+    background: rgba(16, 185, 129, 0.9);
+    backdrop-filter: blur(20px) saturate(180%);
+    border-color: rgba(110, 231, 183, 0.3);
   }
   
   .ollama-status-icon {
@@ -1553,20 +1518,25 @@ style.textContent = `
   
   /* Hover pour voir plus de détails */
   .ollama-status:hover {
-    pointer-events: auto;
     cursor: pointer;
-    transform: translateY(-50%) scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    height: auto;
-    min-height: 32px;
-    max-height: 200px;
+    transform: translateY(-4px);
+    box-shadow: 
+      0 8px 40px rgba(0, 0, 0, 0.4),
+      0 12px 48px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
   
   .ollama-status.expanded {
     height: auto !important;
+    min-height: 200px;
     background: rgba(0, 0, 0, 0.95);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    padding: 12px 16px;
+    backdrop-filter: blur(30px) saturate(200%);
+    box-shadow: 
+      0 12px 60px rgba(0, 0, 0, 0.5),
+      0 16px 80px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    padding: 20px 24px;
+    transform: translateY(-8px) scale(1.02);
   }
   
   .ollama-status-timer {
