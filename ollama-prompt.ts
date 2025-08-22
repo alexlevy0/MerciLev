@@ -50,16 +50,19 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
 
 RÈGLES STRICTES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
+- NE JAMAIS ajouter de guillemets ("") autour de la phrase
 - NE JAMAIS ajouter de formatage markdown (pas de **, *, __, ~~, backticks, etc.)
 - NE JAMAIS mettre en gras, italique, souligné ou barré
 - CONSERVER le formatage UNIQUEMENT s'il existait déjà dans l'original
 - Renvoyer du TEXTE BRUT sans aucun enrichissement typographique
 - NE JAMAIS changer "on" en "nous" (les deux sont corrects)
+- NE JAMAIS changer la structure de la phrase
 - NE JAMAIS ajouter ou supprimer des mots SAUF:
   * Pour ajouter des espaces manquants ("Jene" → "Je ne")
   * Pour corriger le nombre des noms avec leurs déterminants ("de nouvelle ami" → "de nouveaux amis")
 - NE JAMAIS changer la structure ou le sens de la phrase
 - NE JAMAIS changer les verbes principaux ("j'ai été" reste "j'ai été", pas "je suis allé")
+- NE JAMAIS reformuler ("tu va venir" → "tu vas venir", PAS "tu es prévu de venir")
 - Pour C'est/Ces : 
   * "C'est" + nom pluriel + verbe pluriel = TOUJOURS "Ces" ("C'est temps sont" → "Ces temps sont")
   * "C'est" + adjectif/singulier = garde "C'est"
@@ -70,14 +73,14 @@ RÈGLES STRICTES:
 - Garde le sens original et le style informel/formel
 - Sois TRÈS attentif aux homophones
 
-EXEMPLES CRITIQUES:
-- "Sa va bien" → "Ça va bien" (PAS "Sa" qui est possessif)
-- "J'ai été a la plage" → "J'ai été à la plage" (PAS de changement du verbe)
-- "C'est temps sont difficile" → "Ces temps sont difficiles" (C'est→Ces + accord pluriel)
-- "Jene vais pas chercher de nouvelle ami" → "Je ne vais pas chercher de nouveaux amis"
-- "Ils ce sont trompé" → "Ils se sont trompés" (ce→se + accord)
-- "pour allez au parc" → "pour aller au parc" (infinitif après préposition)
-- "Tout les jours" → "Tous les jours" (Tout→Tous devant article pluriel)
+EXEMPLES CRITIQUES (SANS GUILLEMETS):
+- "Sa va bien" → Ça va bien (PAS "Ça va bien" avec guillemets)
+- "J'ai été a la plage" → J'ai été à la plage (PAS de changement du verbe)
+- "C'est temps sont difficile" → Ces temps sont difficiles (C'est→Ces + accord pluriel)
+- "Jene vais pas chercher de nouvelle ami" → Je ne vais pas chercher de nouveaux amis
+- "Ils ce sont trompé" → Ils se sont trompés (ce→se + accord)
+- "pour allez au parc" → pour aller au parc (infinitif après préposition)
+- "Tout les jours" → Tous les jours (Tout→Tous devant article pluriel)
 
 RÈGLES CRITIQUES SUPPLÉMENTAIRES:
 - ce/se : "se" est réfléchi (se tromper, se lever), "ce" est démonstratif
@@ -112,7 +115,10 @@ export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
 
 // Configuration des options par modèle
 export const MODEL_OPTIONS: Record<ModelName, any> = {
-  [MODELS.QWEN25_3B]: {},
+  [MODELS.QWEN25_3B]: {
+    temperature: 0.1,  // Plus déterministe
+    top_p: 0.9
+  },
   [MODELS.GEMMA3N_E4B]: {},
   [MODELS.GEMMA3N_E2B]: {},
   [MODELS.GRANITE_EMBEDDING]: {
