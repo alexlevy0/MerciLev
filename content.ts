@@ -588,8 +588,8 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
 let correctionTimeout: NodeJS.Timeout | null = null;
 let countdownInterval: NodeJS.Timeout | null = null;
 
-// Délai avant correction (3s en production, 0 pour les tests)
-const CORRECTION_DELAY = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' ? 0 : 3000;
+// Délai avant correction (1.5s en production, 0 pour les tests)
+const CORRECTION_DELAY = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' ? 0 : 1500;
 
 // Gérer la correction lors de l'espace
 async function handleSpacePress(state: InputState, spacePosition: number) {
@@ -653,24 +653,20 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   
   // Si délai > 0, afficher le compte à rebours
   if (CORRECTION_DELAY > 0) {
-    // Afficher un indicateur d'attente avec compte à rebours
-    let countdown = Math.ceil(CORRECTION_DELAY / 1000);
-    updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+    // Afficher un indicateur d'attente
+    updateStatusIndicator(state, 'idle', `Attente 1.5s...`, 0);
     
-    // Mettre à jour le compte à rebours chaque seconde
-    countdownInterval = setInterval(() => {
-      countdown--;
-      if (countdown > 0) {
-        updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
-      }
-    }, 1000);
+    // Après 0.75s, mettre à jour pour montrer qu'on arrive bientôt
+    countdownInterval = setTimeout(() => {
+      updateStatusIndicator(state, 'idle', `Analyse...`, 0);
+    }, 750);
   }
   
   // Fonction de correction
   const performCorrection = async () => {
     // Arrêter le compte à rebours si présent
     if (countdownInterval) {
-      clearInterval(countdownInterval);
+      clearTimeout(countdownInterval);
       countdownInterval = null;
     }
     // Vérifier que l'utilisateur n'a pas continué à taper
@@ -1121,7 +1117,7 @@ async function handleInput(state: InputState, event: InputEvent) {
     clearTimeout(correctionTimeout);
     correctionTimeout = null;
     if (countdownInterval) {
-      clearInterval(countdownInterval);
+      clearTimeout(countdownInterval);
       countdownInterval = null;
     }
     updateStatusIndicator(state, 'idle', 'Annulé', 0);
@@ -1568,7 +1564,7 @@ function cleanup() {
   if (typeof cleanupInterval !== 'undefined') clearInterval(cleanupInterval);
   if (typeof reobserveInterval !== 'undefined') clearInterval(reobserveInterval);
   if (correctionTimeout) clearTimeout(correctionTimeout);
-  if (countdownInterval) clearInterval(countdownInterval);
+  if (countdownInterval) clearTimeout(countdownInterval);
   
   // Déconnecter les observers
   mutationObserver.disconnect();
