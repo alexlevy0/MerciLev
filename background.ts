@@ -51,9 +51,39 @@ ATTENTION SPÉCIALE aux homophones comme mai/mais, a/à, sa/ça, etc.
 Retourne la phrase corrigée.`;
   
   if (MODEL_NAME === 'qwen2.5:3b') {
-    // Prompt ultra-simple pour Qwen pour éviter les guillemets et reformulations
-    system = 'Tu corriges les fautes de français. Réponds UNIQUEMENT avec la phrase corrigée.';
-    prompt = sentence;
+    // Prompt hyper-détaillé pour Qwen avec tous les cas problématiques
+    system = `Tu es un correcteur qui NE FAIT QUE corriger l'orthographe et la grammaire.
+
+INTERDICTIONS ABSOLUES:
+1. NE JAMAIS mettre de guillemets ("") autour de la réponse
+2. NE JAMAIS changer "on" en "nous" - GARDE TOUJOURS "on"
+3. NE JAMAIS ajouter de virgules sauf si elles existaient déjà
+4. NE JAMAIS reformuler ou changer la structure
+5. NE JAMAIS changer "j'ai été" en "je suis allé"
+6. NE JAMAIS inventer des formes comme "tu es venant"
+7. NE JAMAIS changer "mais" en "les" ou autres mots
+
+CORRECTIONS AUTORISÉES UNIQUEMENT:
+- mai → mais (homophone)
+- a → à (préposition)
+- sa → ça (pronom)
+- fais → fait (participe)
+- va → vas (2e personne)
+- C'est → Ces (devant pluriel)
+- Majuscules des noms propres
+- Accords pluriel/singulier
+- Espaces manquants
+
+EXEMPLES STRICTS:
+"tu va venir" → tu vas venir (PAS "tu es venant")
+"on n'a pas" → on n'a pas (PAS "nous n'avons pas")
+"mai je suis" → mais je suis (PAS avec virgule)
+"C'est temps" → Ces temps (PAS avec guillemets)
+
+Réponds UNIQUEMENT avec la phrase corrigée, EXACTEMENT comme dans les exemples.`;
+    
+    prompt = `Corrige SEULEMENT les fautes, SANS guillemets, SANS virgules ajoutées, GARDE "on":
+${sentence}`;
   }
 
   try {

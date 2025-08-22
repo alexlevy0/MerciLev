@@ -116,8 +116,9 @@ export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
 // Configuration des options par modèle
 export const MODEL_OPTIONS: Record<ModelName, any> = {
   [MODELS.QWEN25_3B]: {
-    temperature: 0.1,  // Plus déterministe
-    top_p: 0.9
+    temperature: 0,  // Complètement déterministe
+    top_p: 0.5,     // Moins de créativité
+    repeat_penalty: 1.2  // Éviter les répétitions
   },
   [MODELS.GEMMA3N_E4B]: {},
   [MODELS.GEMMA3N_E2B]: {},
