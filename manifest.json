@@ -1,0 +1,30 @@
+// FICHIER: manifest.json
+{
+  "manifest_version": 3,
+  "name": "Correcteur Français Ollama",
+  "version": "1.0.0",
+  "description": "Correction orthographique et grammaticale en français avec Ollama",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:11434/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}
