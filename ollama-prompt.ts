@@ -92,6 +92,7 @@ RÈGLES CRITIQUES SUPPLÉMENTAIRES:
 
 // Modèles disponibles
 export const MODELS = {
+  QWEN25_7B: 'qwen2.5:7b',
   QWEN25_3B: 'qwen2.5:3b',
   GEMMA3N_E4B: 'gemma3n:e4b',
   GEMMA3N_E2B: 'gemma3n:e2b',
@@ -115,6 +116,11 @@ export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
 
 // Configuration des options par modèle
 export const MODEL_OPTIONS: Record<ModelName, any> = {
+  [MODELS.QWEN25_7B]: {
+    temperature: 0,  // Complètement déterministe
+    top_p: 0.5,     // Moins de créativité
+    repeat_penalty: 1.2  // Éviter les répétitions
+  },
   [MODELS.QWEN25_3B]: {
     temperature: 0,  // Complètement déterministe
     top_p: 0.5,     // Moins de créativité

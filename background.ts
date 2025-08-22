@@ -50,7 +50,7 @@ Corrige TOUTES les fautes (orthographe, grammaire, conjugaison, accords, HOMOPHO
 ATTENTION SPÉCIALE aux homophones comme mai/mais, a/à, sa/ça, etc.
 Retourne la phrase corrigée.`;
   
-  if (MODEL_NAME === 'qwen2.5:3b') {
+  if (MODEL_NAME === 'qwen2.5:3b' || MODEL_NAME === 'qwen2.5:7b') {
     // Prompt hyper-détaillé pour Qwen avec tous les cas problématiques
     system = `Tu es un correcteur qui NE FAIT QUE corriger l'orthographe et la grammaire.
 
@@ -136,7 +136,7 @@ ${sentence}`;
     let result = data.response.trim();
     
     // Nettoyer la réponse de Qwen qui ajoute des guillemets
-    if (MODEL_NAME === 'qwen2.5:3b') {
+    if (MODEL_NAME === 'qwen2.5:3b' || MODEL_NAME === 'qwen2.5:7b') {
       // Enlever tous les types de guillemets au début et à la fin
       result = result.replace(/^["""""«»]+|["""""«»]+$/g, '');
       // Si la phrase entière est entre guillemets doubles
