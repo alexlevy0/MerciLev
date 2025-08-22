@@ -106,7 +106,7 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
 
 // Mettre à jour l'indicateur de statut
 function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | 'processing' | 'error' | 'cached', text?: string, time?: number) {
-  if (!state.statusIndicator) return;
+  if (!state.statusIndicator || !isExtensionValid()) return;
   
   const indicator = state.statusIndicator;
   const textElement = indicator.querySelector('.ollama-status-text') as HTMLElement;
@@ -586,6 +586,12 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
 
 // Gérer la correction lors de l'espace
 async function handleSpacePress(state: InputState, spacePosition: number) {
+  // Vérifier si l'extension est toujours valide avant de continuer
+  if (!isExtensionValid()) {
+    console.log('Extension invalidée - Abandon de la correction');
+    return;
+  }
+  
   // Annuler toute correction en cours
   if (state.pendingCorrection) {
     state.pendingCorrection.abort();
@@ -1039,6 +1045,11 @@ function observeContentEditableElement(element: HTMLElement, state: InputState) 
 
 // Gérer l'input
 async function handleInput(state: InputState, event: InputEvent) {
+  // Vérifier si l'extension est toujours valide
+  if (!isExtensionValid()) {
+    return;
+  }
+  
   const newValue = state.element.getValue();
   const oldValue = state.lastValue;
   const caretPos = state.element.getCaretPosition();
@@ -1083,6 +1094,11 @@ function handleKeyDown(state: InputState, event: KeyboardEvent) {
 
 // Observer tous les éléments éditables
 function observeAllEditableElements() {
+  // Vérifier si l'extension est valide
+  if (!isExtensionValid()) {
+    return;
+  }
+  
   // Inputs et textareas standards
   const standardInputs = document.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
   standardInputs.forEach(element => observeEditableElement(element as HTMLElement));
@@ -1516,14 +1532,19 @@ setInterval(() => {
   }
 }, 5000);
 
-// Démarrer l'observation
-observeAllEditableElements();
-mutationObserver.observe(document.body, {
-  childList: true,
-  subtree: true,
-  attributes: true,
-  attributeFilter: ['contenteditable', 'role']
-});
+// Vérification initiale
+if (!isExtensionValid()) {
+  console.log('Extension non valide au démarrage - Abandon');
+} else {
+  // Démarrer l'observation
+  observeAllEditableElements();
+  mutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['contenteditable', 'role']
+  });
+}
 
 // Réobserver périodiquement pour les éléments créés dynamiquement
 const reobserveInterval = setInterval(() => {
