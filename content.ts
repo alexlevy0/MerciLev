@@ -120,13 +120,27 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
   
   switch (status) {
     case 'idle':
+      // Nettoyer les classes
+      indicator.classList.remove('loading', 'processing', 'error', 'cached', 'fading');
+      indicator.classList.add('idle');
+      
+      // Retirer les styles forcés
+      indicator.style.removeProperty('display');
+      indicator.style.removeProperty('opacity');
+      indicator.style.removeProperty('visibility');
+      
       if (time === 0) {
         // Ne pas masquer si on vient d'afficher un résultat
         indicator.classList.remove('hidden');
         textElement.textContent = text || 'OK';
-        // Masquer après 5 secondes
+        // Masquer après 5 secondes SEULEMENT si vraiment idle
         setTimeout(() => {
-          if (indicator.classList.contains('idle') && !indicator.classList.contains('expanded')) {
+          // Vérifier qu'on est toujours en idle et pas en cours de traitement
+          if (indicator.classList.contains('idle') && 
+              !indicator.classList.contains('expanded') && 
+              !indicator.classList.contains('loading') && 
+              !indicator.classList.contains('processing') &&
+              !state.correctionInProgress) {
             indicator.classList.add('hidden');
           }
         }, 5000);
@@ -137,8 +151,13 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
       }
       break;
     case 'loading':
-      indicator.classList.remove('hidden');
+      // Forcer la visibilité
+      indicator.classList.remove('hidden', 'fading');
+      indicator.classList.remove('idle', 'error', 'cached', 'processing');
       indicator.classList.add('loading');
+      indicator.style.display = 'flex';
+      indicator.style.opacity = '1';
+      indicator.style.visibility = 'visible';
       textElement.textContent = text || 'Connexion...';
       detailsElement.textContent = `Requête #${totalQueries + 1}`;
       
@@ -156,22 +175,35 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
       
       break;
     case 'processing':
-      indicator.classList.remove('hidden');
+      // Forcer la visibilité
+      indicator.classList.remove('hidden', 'fading');
+      indicator.classList.remove('idle', 'error', 'cached', 'loading');
       indicator.classList.add('processing');
+      indicator.style.display = 'flex';
+      indicator.style.opacity = '1';
+      indicator.style.visibility = 'visible';
       textElement.textContent = text || 'Analyse...';
       detailsElement.textContent = `Moy: ${avgTime}ms | Cache: ${cacheRate}%`;
       
       // Le timer continue de tourner
       break;
     case 'error':
-      indicator.classList.remove('hidden');
+      indicator.classList.remove('hidden', 'fading');
+      indicator.classList.remove('idle', 'loading', 'cached', 'processing');
       indicator.classList.add('error');
+      indicator.style.display = 'flex';
+      indicator.style.opacity = '1';
+      indicator.style.visibility = 'visible';
       textElement.textContent = text || 'Erreur';
       detailsElement.textContent = 'Vérifier Ollama';
       break;
     case 'cached':
-      indicator.classList.remove('hidden');
+      indicator.classList.remove('hidden', 'fading');
+      indicator.classList.remove('idle', 'error', 'loading', 'processing');
       indicator.classList.add('cached');
+      indicator.style.display = 'flex';
+      indicator.style.opacity = '1';
+      indicator.style.visibility = 'visible';
       textElement.textContent = '⚡ Cache';
       detailsElement.textContent = `Hit #${state.performanceStats.cacheHits}/${totalQueries}`;
       
@@ -1385,6 +1417,16 @@ style.textContent = `
     opacity: 1 !important;
     transform: translateY(0) !important;
     pointer-events: auto !important;
+    display: flex !important;
+    visibility: visible !important;
+  }
+  
+  /* Empêcher le masquage pendant le traitement */
+  .ollama-status.loading.hidden,
+  .ollama-status.processing.hidden {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
   
   .ollama-status.fading {
