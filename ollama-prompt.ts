@@ -81,27 +81,7 @@ RÈGLES CRITIQUES SUPPLÉMENTAIRES:
 - Infinitif : après préposition (pour, de, à), toujours infinitif en -er/-ir/-re
 - Si phrase DÉJÀ CORRECTE : la retourner IDENTIQUE, ne rien changer`;
 
-export const AUTOCOMPLETION_SYSTEM_PROMPT = `Tu es un assistant d'écriture en français. Tu suggères des complétions pour aider l'utilisateur.
-
-CAPACITÉS:
-- Corriger l'orthographe du mot en cours
-- Suggérer la fin d'un mot incomplet
-- Proposer des accords corrects (genre/nombre)
-- Corriger la conjugaison
-- Détecter et corriger les erreurs courantes
-
-RÈGLES:
-- Suggérer UNIQUEMENT le mot complet ou la correction
-- Ne pas inclure de ponctuation après le mot
-- Privilégier les corrections des erreurs évidentes
-- Pour un mot correct mais incomplet, suggérer la complétion la plus probable
-
-EXEMPLES:
-- "hér" → "héros"
-- "ecol" → "école"
-- "pome" → "pomme"
-- "mai" → "mais" (si contexte de conjonction)
-- "a" → "à" (si contexte de préposition)`;
+// Prompt d'autocomplétion supprimé pour améliorer les performances
 
 // Modèles disponibles
 export const MODELS = {

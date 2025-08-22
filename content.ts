@@ -15,13 +15,9 @@ interface InputState {
   correctedWords: Map<number, {word: string, originalWord: string, timestamp?: number}>;
   lastValue: string;
   isComposing: boolean;
-  currentSuggestion: string;
-  suggestionStart: number;
   pendingCorrection: AbortController | null;
   lastSpacePosition: number;
   correctionInProgress: boolean;
-  completionTimeout?: number;
-  originalValue: string;
   statusIndicator?: HTMLDivElement;
   performanceStats: {
     lastCorrectionTime?: number;
@@ -440,16 +436,7 @@ function createOverlay(wrapper: EditableElement): HTMLDivElement {
   return overlay;
 }
 
-// Créer l'élément de suggestion fantôme
-function createSuggestionElement(): HTMLSpanElement {
-  const span = document.createElement('span');
-  span.className = 'ghost-suggestion';
-  span.style.cssText = `
-    color: #9ca3af;
-    pointer-events: none;
-  `;
-  return span;
-}
+// Fonction de suggestion supprimée
 
 // Mise à jour de la position de l'overlay
 function updateOverlayPosition(element: HTMLElement, overlay: HTMLDivElement) {
@@ -469,7 +456,7 @@ function updateOverlayPosition(element: HTMLElement, overlay: HTMLDivElement) {
 }
 
 // Mise à jour du contenu de l'overlay avec animations et suggestion
-function updateOverlayContent(state: InputState, showSuggestion: boolean = true) {
+function updateOverlayContent(state: InputState) {
   const text = state.element.getValue();
   const caretPos = state.element.getCaretPosition();
   let html = '';
@@ -506,10 +493,7 @@ function updateOverlayContent(state: InputState, showSuggestion: boolean = true)
     }
   }
   
-  // Ajouter la suggestion fantôme
-  if (showSuggestion && state.currentSuggestion && caretPos === text.length) {
-    html += `<span class="ghost-suggestion">${escapeHtml(state.currentSuggestion)}</span>`;
-  }
+  // Autocomplétion supprimée
   
   state.overlay.innerHTML = html;
   
@@ -762,11 +746,10 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   }
 }
 
-// Cache pour l'autocomplétion
-const completionCache = new Map<string, {suggestions: string[], timestamp: number}>();
-const COMPLETION_CACHE_DURATION = 60 * 1000; // 1 minute
+// Autocomplétion supprimée pour améliorer les performances
 
-// Gérer l'autocomplétion
+/*
+// Anciennes fonctions d'autocomplétion - supprimées
 async function handleAutocompletion(state: InputState) {
   // Permettre l'autocomplétion même pendant une correction
   const caretPos = state.element.getCaretPosition();
@@ -892,6 +875,7 @@ function acceptSuggestion(state: InputState) {
   state.lastValue = newText;
   hideSuggestion(state);
 }
+*/
 
 // Observer les changements sur un élément éditable
 function observeEditableElement(element: HTMLElement) {
@@ -910,12 +894,9 @@ function observeEditableElement(element: HTMLElement) {
     correctedWords: new Map(),
     lastValue: wrapper.getValue(),
     isComposing: false,
-    currentSuggestion: '',
-    suggestionStart: -1,
     pendingCorrection: null,
     lastSpacePosition: -1,
     correctionInProgress: false,
-    originalValue: wrapper.getValue(),
     statusIndicator,
     performanceStats: {
       correctionCount: 0,
@@ -985,10 +966,7 @@ function observeInputElement(input: HTMLInputElement | HTMLTextAreaElement, stat
     state.isComposing = false;
   });
   
-  // Focus/Blur
-  input.addEventListener('blur', () => {
-    setTimeout(() => hideSuggestion(state), 200);
-  });
+  // Focus/Blur - autocomplétion supprimée
 }
 
 // Observer un élément contenteditable
@@ -1026,10 +1004,7 @@ function observeContentEditableElement(element: HTMLElement, state: InputState) 
     state.isComposing = false;
   });
   
-  // Focus/Blur
-  element.addEventListener('blur', () => {
-    setTimeout(() => hideSuggestion(state), 200);
-  });
+  // Focus/Blur - autocomplétion supprimée
   
   // Intercepter les événements beforeinput pour certains éditeurs
   element.addEventListener('beforeinput', async (event) => {
@@ -1068,18 +1043,7 @@ async function handleInput(state: InputState, event: InputEvent) {
       state.pendingCorrection = null;
     }
     
-    // Gérer l'autocomplétion en parallèle (pas besoin d'attendre la correction)
-    if (state.completionTimeout) {
-      clearTimeout(state.completionTimeout);
-    }
-    state.completionTimeout = setTimeout(() => handleAutocompletion(state), 10); // Réduit de 50ms à 10ms
-  } else if (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward') {
-    hideSuggestion(state);
-  }
-  
-  // Si le texte change, cacher la suggestion actuelle
-  if (state.currentSuggestion && newValue !== state.originalValue + state.currentSuggestion) {
-    hideSuggestion(state);
+    // Autocomplétion supprimée pour améliorer les performances
   }
   
   state.lastValue = newValue;
@@ -1094,17 +1058,7 @@ function handleKeyDown(state: InputState, event: KeyboardEvent) {
     state.pendingCorrection = null;
   }
   
-  // Gérer Tab pour accepter la suggestion
-  if (event.key === 'Tab' && state.currentSuggestion) {
-    event.preventDefault();
-    acceptSuggestion(state);
-  } else if (event.key === 'Escape' && state.currentSuggestion) {
-    hideSuggestion(state);
-  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || 
-             event.key === 'ArrowUp' || event.key === 'ArrowDown' ||
-             event.key === 'Home' || event.key === 'End') {
-    hideSuggestion(state);
-  }
+  // Autocomplétion supprimée - ces touches ne font plus rien de spécial
 }
 
 // Observer tous les éléments éditables
@@ -1449,11 +1403,7 @@ style.textContent = `
     animation: correctionPulse 1s ease-in-out;
   }
   
-  .correction-overlay .ghost-suggestion {
-    color: #9ca3af !important;
-    opacity: 0.7 !important;
-    display: inline !important;
-  }
+
   
   .correction-error-tooltip {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1469,13 +1419,6 @@ setInterval(() => {
   for (const [key, value] of correctionCache.entries()) {
     if (now - value.timestamp > CACHE_DURATION) {
       correctionCache.delete(key);
-    }
-  }
-  
-  // Nettoyer le cache d'autocomplétion
-  for (const [key, value] of completionCache.entries()) {
-    if (now - value.timestamp > COMPLETION_CACHE_DURATION) {
-      completionCache.delete(key);
     }
   }
   

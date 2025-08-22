@@ -1,5 +1,5 @@
 // FICHIER: background.ts
-import { CORRECTION_SYSTEM_PROMPT, AUTOCOMPLETION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, MODELS, DEFAULT_MODEL, setModel, ModelName, getModelOptions } from './ollama-prompt.ts';
+import { CORRECTION_SYSTEM_PROMPT, MODEL_NAME, OLLAMA_ENDPOINT, MODELS, DEFAULT_MODEL, setModel, ModelName, getModelOptions } from './ollama-prompt.ts';
 
 interface CorrectionRequest {
   sentence: string;
@@ -17,16 +17,7 @@ interface CorrectionResponse {
   corrections: Array<{start: number, end: number, original: string, corrected: string}>;
 }
 
-interface CompletionRequest {
-  partialWord: string;
-  fullText: string;
-  position: number;
-}
-
-interface CompletionResponse {
-  suggestions: string[];
-  error?: string;
-}
+// Interfaces d'autocomplétion supprimées
 
 interface OllamaResponse {
   response: string;
@@ -177,21 +168,10 @@ function analyzeDifferences(original: string, corrected: string): Array<{start: 
   return corrections;
 }
 
-// Obtenir le préfixe commun entre deux chaînes
-function getCommonPrefix(str1: string, str2: string): string {
-  let prefix = '';
-  const minLength = Math.min(str1.length, str2.length);
-  for (let i = 0; i < minLength; i++) {
-    if (str1[i] === str2[i]) {
-      prefix += str1[i];
-    } else {
-      break;
-    }
-  }
-  return prefix;
-}
+// Fonctions d'autocomplétion supprimées pour améliorer les performances
 
-// Fonction pour obtenir des suggestions d'autocomplétion
+/*
+// Fonction d'autocomplétion supprimée
 async function getCompletions(partialWord: string, fullText: string, position: number): Promise<string[]> {
   const system = AUTOCOMPLETION_SYSTEM_PROMPT + `
 
@@ -256,6 +236,7 @@ Suggère la complétion ou correction la plus probable en tenant compte de la gr
     return [];
   }
 }
+*/
 
 // Test de connexion à Ollama
 async function testConnection(): Promise<{ success: boolean; error?: string; details?: string }> {
@@ -444,29 +425,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
   
-  if (request.type === 'get-completions') {
-    const completionRequest = request as CompletionRequest & { type: string };
-    
-    getCompletions(
-      completionRequest.partialWord,
-      completionRequest.fullText,
-      completionRequest.position
-    )
-      .then(suggestions => {
-        sendResponse({
-          suggestions,
-          error: undefined
-        } as CompletionResponse);
-      })
-      .catch(error => {
-        sendResponse({
-          suggestions: [],
-          error: error.message
-        } as CompletionResponse);
-      });
-    
-    return true;
-  }
+  // Autocomplétion supprimée pour améliorer les performances
   
   return false;
 });
