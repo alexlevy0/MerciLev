@@ -51,12 +51,26 @@ TYPES D'ERREURS À CORRIGER OBLIGATOIREMENT:
 RÈGLES STRICTES:
 - Retourne UNIQUEMENT la phrase corrigée, RIEN d'autre
 - NE JAMAIS changer "on" en "nous" (les deux sont corrects)
-- NE JAMAIS ajouter ou supprimer des mots
-- NE JAMAIS changer la structure de la phrase
-- Pour C'est/Ces : "C'est" + nom pluriel = TOUJOURS "Ces"
+- NE JAMAIS ajouter ou supprimer des mots SAUF:
+  * Pour ajouter des espaces manquants ("Jene" → "Je ne")
+  * Pour corriger le nombre des noms avec leurs déterminants ("de nouvelle ami" → "de nouveaux amis")
+- NE JAMAIS changer la structure ou le sens de la phrase
+- NE JAMAIS changer les verbes principaux ("j'ai été" reste "j'ai été", pas "je suis allé")
+- Pour C'est/Ces : 
+  * "C'est" + nom pluriel + verbe pluriel = TOUJOURS "Ces" ("C'est temps sont" → "Ces temps sont")
+  * "C'est" + adjectif/singulier = garde "C'est"
+- Pour les accords: TOUJOURS vérifier singulier/pluriel
+  * "nouvelle ami" → "nouveaux amis" (pluriel après "de" dans ce contexte)
+  * "temps... difficile" → "temps... difficiles" (accord avec le sujet pluriel)
 - Si la phrase est déjà correcte, la retourner EXACTEMENT comme elle est
 - Garde le sens original et le style informel/formel
-- Sois TRÈS attentif aux homophones`;
+- Sois TRÈS attentif aux homophones
+
+EXEMPLES CRITIQUES:
+- "Sa va bien" → "Ça va bien" (PAS "Sa" qui est possessif)
+- "J'ai été a la plage" → "J'ai été à la plage" (PAS de changement du verbe)
+- "C'est temps sont difficile" → "Ces temps sont difficiles" (C'est→Ces + accord pluriel)
+- "Jene vais pas chercher de nouvelle ami" → "Je ne vais pas chercher de nouveaux amis"`;
 
 export const AUTOCOMPLETION_SYSTEM_PROMPT = `Tu es un assistant d'écriture en français. Tu suggères des complétions pour aider l'utilisateur.
 
