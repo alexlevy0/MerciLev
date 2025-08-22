@@ -588,6 +588,9 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
 let correctionTimeout: NodeJS.Timeout | null = null;
 let countdownInterval: NodeJS.Timeout | null = null;
 
+// Délai avant correction (3s en production, 0 pour les tests)
+const CORRECTION_DELAY = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test' ? 0 : 3000;
+
 // Gérer la correction lors de l'espace
 async function handleSpacePress(state: InputState, spacePosition: number) {
   // Vérifier si l'extension est toujours valide avant de continuer
@@ -648,22 +651,28 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   // Marquer cette position d'espace
   state.lastSpacePosition = spacePosition;
   
-  // Afficher un indicateur d'attente avec compte à rebours
-  let countdown = 3;
-  updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+  // Si délai > 0, afficher le compte à rebours
+  if (CORRECTION_DELAY > 0) {
+    // Afficher un indicateur d'attente avec compte à rebours
+    let countdown = Math.ceil(CORRECTION_DELAY / 1000);
+    updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+    
+    // Mettre à jour le compte à rebours chaque seconde
+    countdownInterval = setInterval(() => {
+      countdown--;
+      if (countdown > 0) {
+        updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+      }
+    }, 1000);
+  }
   
-  // Mettre à jour le compte à rebours chaque seconde
-  countdownInterval = setInterval(() => {
-    countdown--;
-    if (countdown > 0) {
-      updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+  // Fonction de correction
+  const performCorrection = async () => {
+    // Arrêter le compte à rebours si présent
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
     }
-  }, 1000);
-  
-  // Attendre 3 secondes avant de commencer la correction
-  correctionTimeout = setTimeout(async () => {
-    // Arrêter le compte à rebours
-    clearInterval(countdownInterval);
     // Vérifier que l'utilisateur n'a pas continué à taper
     const currentText = state.element.getValue();
     const currentCaretPos = state.element.getCaretPosition();
@@ -808,7 +817,15 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       state.pendingCorrection = null;
     }
   }
-  }, 3000); // Attendre 3 secondes
+  };
+  
+  // Si délai = 0 (tests), exécuter immédiatement
+  if (CORRECTION_DELAY === 0) {
+    await performCorrection();
+  } else {
+    // Sinon, attendre le délai spécifié
+    correctionTimeout = setTimeout(performCorrection, CORRECTION_DELAY);
+  }
 }
 
 // Autocomplétion supprimée pour améliorer les performances

@@ -4,6 +4,8 @@
 
 L'extension attend maintenant **3 secondes** après qu'un espace soit tapé avant d'envoyer la requête de correction. Cela évite de bloquer l'interface pendant que l'utilisateur tape.
 
+> **Note importante** : Ce délai ne s'applique **PAS** aux tests ! Les tests s'exécutent immédiatement pour conserver des temps de réponse précis.
+
 ## ✨ Comportement
 
 ### 1. **Quand vous tapez un espace**
@@ -67,22 +69,25 @@ User tape : "Je suis en train de " (plusieurs espaces rapidement)
 ## 🔧 Implémentation technique
 
 ```typescript
-// Timer global pour gérer le délai
-let correctionTimeout: NodeJS.Timeout | null = null;
-let countdownInterval: NodeJS.Timeout | null = null;
+// Délai adaptatif (3s en production, 0 pour les tests)
+const CORRECTION_DELAY = typeof process !== 'undefined' && 
+                         process.env?.NODE_ENV === 'test' ? 0 : 3000;
 
-// Lors d'un espace
-correctionTimeout = setTimeout(async () => {
-  // Lancer la correction après 3 secondes
-}, 3000);
-
-// Si l'utilisateur tape
-if (correctionTimeout) {
-  clearTimeout(correctionTimeout);
-  clearInterval(countdownInterval);
-  updateStatusIndicator('Annulé');
+// Si délai = 0 (tests), exécuter immédiatement
+if (CORRECTION_DELAY === 0) {
+  await performCorrection();
+} else {
+  // Sinon, attendre avec compte à rebours
+  correctionTimeout = setTimeout(performCorrection, CORRECTION_DELAY);
 }
 ```
+
+### Tests vs Production
+
+| Environnement | Délai | Compte à rebours | Raison |
+|---------------|-------|------------------|--------|
+| **Production** | 3s | ✅ Visible | Confort de frappe |
+| **Tests** | 0s | ❌ Désactivé | Mesures précises |
 
 ## 💡 Conseils d'utilisation
 
