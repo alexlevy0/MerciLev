@@ -645,15 +645,35 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   try {
     updateStatusIndicator(state, 'processing', 'Analyse...');
     
-    const response = await chrome.runtime.sendMessage({
-      type: 'correct-word',
-      sentence: sentence,
-      fullText: text,
-      cursorPosition: spacePosition - sentenceStart,
-      sentenceStart: sentenceStart,
-      tabId: chrome.runtime.id,
-      inputId: 'unknown'
-    });
+    let response;
+    try {
+      response = await chrome.runtime.sendMessage({
+        type: 'correct-word',
+        sentence: sentence,
+        fullText: text,
+        cursorPosition: spacePosition - sentenceStart,
+        sentenceStart: sentenceStart,
+        tabId: chrome.runtime.id,
+        inputId: 'unknown'
+      });
+    } catch (error: any) {
+      // Gérer l'erreur "Extension context invalidated"
+      if (error.message && error.message.includes('Extension context invalidated')) {
+        console.log('Extension rechargée - Reconnexion nécessaire');
+        updateStatusIndicator(state, 'error', 'Extension rechargée', 0);
+        
+        // Essayer de se reconnecter après un court délai
+        setTimeout(() => {
+          // Vérifier si chrome.runtime est toujours disponible
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+            updateStatusIndicator(state, 'idle', 'Reconnecté', 0);
+          }
+        }, 1000);
+        
+        return;
+      }
+      throw error;
+    }
     
     // Vérifier si la correction a été annulée
     if (abortController.signal.aborted) {
@@ -1114,6 +1134,15 @@ const mutationObserver = new MutationObserver((mutations) => {
 const correctionCache = new Map<string, {result: string, timestamp: number}>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Vérifier si l'extension est toujours valide
+function isExtensionValid(): boolean {
+  try {
+    return !!(chrome && chrome.runtime && chrome.runtime.id);
+  } catch {
+    return false;
+  }
+}
+
 // Patterns d'erreurs courantes pour une détection rapide
 const ERROR_PATTERNS = {
   // Espaces manquants
@@ -1412,7 +1441,14 @@ style.textContent = `
 document.head.appendChild(style);
 
 // Nettoyer les caches périodiquement
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
+  // Vérifier si l'extension est toujours valide
+  if (!isExtensionValid()) {
+    console.log('Extension invalidée - Arrêt du nettoyage périodique');
+    clearInterval(cleanupInterval);
+    return;
+  }
+  
   const now = Date.now();
   
   // Nettoyer le cache de correction
@@ -1441,6 +1477,45 @@ setInterval(() => {
   }
 }, 60000); // Toutes les minutes
 
+// Fonction de nettoyage global
+function cleanup() {
+  console.log('Nettoyage des ressources de l\'extension...');
+  
+  // Arrêter les intervalles
+  if (typeof cleanupInterval !== 'undefined') clearInterval(cleanupInterval);
+  if (typeof reobserveInterval !== 'undefined') clearInterval(reobserveInterval);
+  
+  // Déconnecter les observers
+  mutationObserver.disconnect();
+  
+  // Nettoyer les états et overlays
+  for (const [element, state] of elementStates) {
+    if (state.overlay && state.overlay.parentNode) {
+      state.overlay.remove();
+    }
+    if (state.statusIndicator && state.statusIndicator.parentNode) {
+      state.statusIndicator.remove();
+    }
+    if (state.pendingCorrection) {
+      state.pendingCorrection.abort();
+    }
+  }
+  elementStates.clear();
+  
+  // Vider les caches
+  correctionCache.clear();
+}
+
+// Détecter quand l'extension est sur le point d'être déchargée
+window.addEventListener('beforeunload', cleanup);
+
+// Vérifier périodiquement si l'extension est toujours valide
+setInterval(() => {
+  if (!isExtensionValid()) {
+    cleanup();
+  }
+}, 5000);
+
 // Démarrer l'observation
 observeAllEditableElements();
 mutationObserver.observe(document.body, {
@@ -1451,6 +1526,11 @@ mutationObserver.observe(document.body, {
 });
 
 // Réobserver périodiquement pour les éléments créés dynamiquement
-setInterval(() => {
+const reobserveInterval = setInterval(() => {
+  if (!isExtensionValid()) {
+    console.log('Extension invalidée - Arrêt de la réobservation');
+    clearInterval(reobserveInterval);
+    return;
+  }
   observeAllEditableElements();
 }, 2000);
