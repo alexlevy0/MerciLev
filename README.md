@@ -4,6 +4,7 @@
 
 - Node.js 24+ et npm installés (pour le support TypeScript natif)
 - Ollama installé avec l'un des modèles suivants :
+  - `qwen2.5:3b` (nouveau, multilingue optimisé)
   - `gemma3n:e2b` (par défaut, rapide et précis)
   - `gemma3n:e4b` (précision maximale)
   - `granite-embedding:278m` (ultra-léger, avec `num_ctx: 512`)
@@ -44,10 +45,11 @@ npm run test:compare
 ./test-all.ts --compare
 
 # Tester un modèle spécifique
+npm run test:qwen   # Test qwen2.5:3b
 npm run test:e2b    # Test gemma3n:e2b
 npm run test:e4b    # Test gemma3n:e4b
 # ou
-./test-all.ts --model=gemma3n:e2b
+./test-all.ts --model=qwen2.5:3b
 
 # Build + Tests
 npm run dev

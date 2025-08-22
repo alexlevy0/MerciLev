@@ -89,9 +89,10 @@ RÈGLES CRITIQUES SUPPLÉMENTAIRES:
 
 // Modèles disponibles
 export const MODELS = {
+  QWEN25_3B: 'qwen2.5:3b',
   GEMMA3N_E4B: 'gemma3n:e4b',
   GEMMA3N_E2B: 'gemma3n:e2b',
-//   GRANITE_EMBEDDING: 'granite-embedding:278m',
+  GRANITE_EMBEDDING: 'granite-embedding:278m',
 } as const;
 
 export type ModelName = typeof MODELS[keyof typeof MODELS];
@@ -111,6 +112,7 @@ export const OLLAMA_ENDPOINT = 'http://localhost:11434/api/generate';
 
 // Configuration des options par modèle
 export const MODEL_OPTIONS: Record<ModelName, any> = {
+  [MODELS.QWEN25_3B]: {},
   [MODELS.GEMMA3N_E4B]: {},
   [MODELS.GEMMA3N_E2B]: {},
   [MODELS.GRANITE_EMBEDDING]: {

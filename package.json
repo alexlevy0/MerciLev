@@ -10,6 +10,7 @@
     "test:e4b": "node --experimental-strip-types --no-warnings test-all.ts --model=gemma3n:e4b",
     "test:e2b": "node --experimental-strip-types --no-warnings test-all.ts --model=gemma3n:e2b",
     "test:granite": "node --experimental-strip-types --no-warnings test-all.ts --model=granite-embedding:278m",
+    "test:qwen": "node --experimental-strip-types --no-warnings test-all.ts --model=qwen2.5:3b",
     "dev": "npm run build && npm test",
     "postinstall": "npm run check"
   },
