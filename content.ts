@@ -22,10 +22,93 @@ interface InputState {
   correctionInProgress: boolean;
   completionTimeout?: number;
   originalValue: string;
+  statusIndicator?: HTMLDivElement;
+  performanceStats: {
+    lastCorrectionTime?: number;
+    averageTime?: number;
+    correctionCount: number;
+    cacheHits: number;
+  };
 }
 
 // Map des états pour chaque élément éditable
 const elementStates = new Map<HTMLElement, InputState>();
+
+// Créer l'indicateur de statut
+function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
+  const indicator = document.createElement('div');
+  indicator.className = 'ollama-status hidden';
+  indicator.innerHTML = `
+    <div class="ollama-status-icon"></div>
+    <span class="ollama-status-text">Prêt</span>
+    <span class="ollama-status-time"></span>
+  `;
+  
+  // Positionner l'indicateur
+  const parent = wrapper.element.parentElement;
+  if (parent) {
+    parent.style.position = 'relative';
+    parent.appendChild(indicator);
+  }
+  
+  return indicator;
+}
+
+// Mettre à jour l'indicateur de statut
+function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | 'processing' | 'error' | 'cached', text?: string, time?: number) {
+  if (!state.statusIndicator) return;
+  
+  const indicator = state.statusIndicator;
+  const textElement = indicator.querySelector('.ollama-status-text') as HTMLElement;
+  const timeElement = indicator.querySelector('.ollama-status-time') as HTMLElement;
+  
+  // Réinitialiser les classes
+  indicator.classList.remove('hidden', 'loading', 'processing', 'error', 'cached');
+  
+  switch (status) {
+    case 'idle':
+      indicator.classList.add('hidden');
+      break;
+    case 'loading':
+      indicator.classList.remove('hidden');
+      indicator.classList.add('loading');
+      textElement.textContent = text || 'Connexion...';
+      break;
+    case 'processing':
+      indicator.classList.remove('hidden');
+      indicator.classList.add('processing');
+      textElement.textContent = text || 'Analyse...';
+      break;
+    case 'error':
+      indicator.classList.remove('hidden');
+      indicator.classList.add('error');
+      textElement.textContent = text || 'Erreur';
+      break;
+    case 'cached':
+      indicator.classList.remove('hidden');
+      textElement.textContent = text || 'Cache';
+      if (indicator.querySelector('.ollama-cache-indicator') === null) {
+        const cacheIcon = document.createElement('div');
+        cacheIcon.className = 'ollama-cache-indicator';
+        indicator.appendChild(cacheIcon);
+      }
+      break;
+  }
+  
+  // Afficher le temps si disponible
+  if (time && timeElement) {
+    timeElement.textContent = `${time}ms`;
+  } else if (timeElement) {
+    timeElement.textContent = '';
+  }
+  
+  // Masquer automatiquement après 3 secondes pour idle
+  if (status === 'idle') {
+    setTimeout(() => {
+      indicator.classList.add('hidden');
+    }, 3000);
+  }
+}
 
 // Détecter le type d'élément éditable et créer un wrapper
 function createEditableWrapper(element: HTMLElement): EditableElement | null {
@@ -433,15 +516,49 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     return;
   }
   
+  // Analyse rapide pour détecter si la phrase a probablement des erreurs
+  const quickCheck = analyzeForPotentialErrors(sentence);
+  if (!quickCheck.hasPotentialErrors) {
+    updateStatusIndicator(state, 'idle', 'OK', 0);
+    return;
+  }
+  
+  // Vérifier le cache d'abord
+  const cacheKey = sentence.trim();
+  const cached = correctionCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    state.performanceStats.cacheHits++;
+    updateStatusIndicator(state, 'cached', 'Cache', 0);
+    
+    // Appliquer la correction depuis le cache
+    if (cached.result !== sentence) {
+      const currentText = state.element.getValue();
+      const newText = currentText.substring(0, sentenceStart) + 
+                     cached.result + 
+                     currentText.substring(sentenceStart + sentence.length);
+      state.element.setValue(newText);
+      state.element.setCaretPosition(spacePosition + (cached.result.length - sentence.length));
+      updateOverlayContent(state);
+    }
+    return;
+  }
+  
   // Marquer cette position d'espace et démarrer la correction
   state.lastSpacePosition = spacePosition;
   state.correctionInProgress = true;
+  
+  // Afficher l'indicateur de chargement
+  updateStatusIndicator(state, 'loading', 'Connexion...');
   
   // Créer un AbortController pour pouvoir annuler cette correction
   const abortController = new AbortController();
   state.pendingCorrection = abortController;
   
+  const startTime = performance.now();
+  
   try {
+    updateStatusIndicator(state, 'processing', 'Analyse...');
+    
     const response = await chrome.runtime.sendMessage({
       type: 'correct-word',
       sentence: sentence,
@@ -466,13 +583,35 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       return;
     }
     
+    const endTime = performance.now();
+    const correctionTime = Math.round(endTime - startTime);
+    
+    // Mettre à jour les statistiques
+    state.performanceStats.correctionCount++;
+    state.performanceStats.lastCorrectionTime = correctionTime;
+    if (state.performanceStats.averageTime) {
+      state.performanceStats.averageTime = 
+        (state.performanceStats.averageTime * (state.performanceStats.correctionCount - 1) + correctionTime) / 
+        state.performanceStats.correctionCount;
+    } else {
+      state.performanceStats.averageTime = correctionTime;
+    }
+    
     if (response.error) {
+      updateStatusIndicator(state, 'error', 'Erreur', correctionTime);
       showErrorTooltip(state.element.element, response.error);
       return;
     }
     
+    // Mettre en cache la réponse
+    correctionCache.set(cacheKey, {
+      result: response.correctedSentence || sentence,
+      timestamp: Date.now()
+    });
+    
     // Appliquer les corrections si la phrase a changé
     if (response.correctedSentence !== sentence && response.corrections && response.corrections.length > 0) {
+      updateStatusIndicator(state, 'idle', 'Corrigé', correctionTime);
       // Reconstruire le texte avec la phrase corrigée
       const newText = currentText.substring(0, sentenceStart) + 
                      response.correctedSentence + 
@@ -503,10 +642,15 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       }
       
       updateOverlayContent(state);
+    } else {
+      // Aucune correction nécessaire
+      updateStatusIndicator(state, 'idle', 'OK', correctionTime);
     }
   } catch (error) {
     if (!abortController.signal.aborted) {
       console.error('Erreur lors de la correction:', error);
+      const errorTime = Math.round(performance.now() - startTime);
+      updateStatusIndicator(state, 'error', 'Erreur', errorTime);
     }
   } finally {
     state.correctionInProgress = false;
@@ -515,6 +659,10 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     }
   }
 }
+
+// Cache pour l'autocomplétion
+const completionCache = new Map<string, {suggestions: string[], timestamp: number}>();
+const COMPLETION_CACHE_DURATION = 60 * 1000; // 1 minute
 
 // Gérer l'autocomplétion
 async function handleAutocompletion(state: InputState) {
@@ -536,7 +684,15 @@ async function handleAutocompletion(state: InputState) {
     return;
   }
   
-  console.log('🔍 Autocomplétion pour:', wordBounds.word);
+  // Vérifier le cache d'abord
+  const cacheKey = `${wordBounds.word}:${text.substring(Math.max(0, wordBounds.start - 20), wordBounds.start)}`;
+  const cached = completionCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < COMPLETION_CACHE_DURATION) {
+    if (cached.suggestions.length > 0) {
+      showSuggestion(state, cached.suggestions[0], wordBounds.start);
+    }
+    return;
+  }
   
   try {
     const response = await chrome.runtime.sendMessage({
@@ -545,6 +701,14 @@ async function handleAutocompletion(state: InputState) {
       fullText: text,
       position: wordBounds.start
     });
+    
+    // Mettre en cache la réponse
+    if (response.suggestions) {
+      completionCache.set(cacheKey, {
+        suggestions: response.suggestions,
+        timestamp: Date.now()
+      });
+    }
     
     if (response.suggestions && response.suggestions.length > 0) {
       const firstSuggestion = response.suggestions[0];
@@ -636,6 +800,8 @@ function observeEditableElement(element: HTMLElement) {
   if (elementStates.has(element)) return;
   
   const overlay = createOverlay(wrapper);
+  const statusIndicator = createStatusIndicator(wrapper);
+  
   const state: InputState = {
     element: wrapper,
     overlay,
@@ -647,7 +813,12 @@ function observeEditableElement(element: HTMLElement) {
     pendingCorrection: null,
     lastSpacePosition: -1,
     correctionInProgress: false,
-    originalValue: wrapper.getValue()
+    originalValue: wrapper.getValue(),
+    statusIndicator,
+    performanceStats: {
+      correctionCount: 0,
+      cacheHits: 0
+    }
   };
   
   elementStates.set(element, state);
@@ -768,7 +939,7 @@ async function handleInput(state: InputState, event: InputEvent) {
     if (state.completionTimeout) {
       clearTimeout(state.completionTimeout);
     }
-    state.completionTimeout = setTimeout(() => handleAutocompletion(state), 50);
+    state.completionTimeout = setTimeout(() => handleAutocompletion(state), 10); // Réduit de 50ms à 10ms
   } else if (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward') {
     hideSuggestion(state);
   }
@@ -852,12 +1023,130 @@ const mutationObserver = new MutationObserver((mutations) => {
   }
 });
 
+// Cache pour les corrections
+const correctionCache = new Map<string, {result: string, timestamp: number}>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Patterns d'erreurs courantes pour une détection rapide
+const ERROR_PATTERNS = {
+  // Espaces manquants
+  missingSpaces: /[a-zàâäéèêëïîôùûüÿç][A-Z]|[a-z](ne|est|pas|mais|donc|puis|car|que)[a-z]/i,
+  // Homophones courants
+  homophones: /\b(sa va|a la |mais pas|c'est [a-z]+s sont|tout les|ce sont trompé|pour allez)\b/i,
+  // Fautes courantes
+  commonErrors: /\b(phaute|ecole|ecrire|apres|tres|francais|etre|hopital|etat|etait|ca va|ilfaut|jene|c'estpas)\b/i,
+  // Accords suspects
+  suspectAgreements: /\b(un[e]? \w+s|des? \w+[^s])\b/i,
+  // Conjugaison suspecte
+  suspectConjugation: /\b(tu va[^s]|il \w+s|elle \w+s|ils \w+[^nt]|elles \w+[^nt])\b/i
+};
+
+// Analyse rapide pour détecter les erreurs potentielles
+function analyzeForPotentialErrors(text: string): {hasPotentialErrors: boolean, patterns: string[]} {
+  const patterns: string[] = [];
+  
+  for (const [name, pattern] of Object.entries(ERROR_PATTERNS)) {
+    if (pattern.test(text)) {
+      patterns.push(name);
+    }
+  }
+  
+  return {
+    hasPotentialErrors: patterns.length > 0,
+    patterns
+  };
+}
+
 // Ajouter les styles CSS
 const style = document.createElement('style');
 style.textContent = `
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+  
+  @keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  .ollama-status {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    font-size: 11px;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #666;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    z-index: 10001;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  
+  .ollama-status.hidden {
+    opacity: 0;
+  }
+  
+  .ollama-status-icon {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #4CAF50;
+    position: relative;
+  }
+  
+  .ollama-status.loading .ollama-status-icon {
+    background: #FF9800;
+    animation: pulse 1s infinite;
+  }
+  
+  .ollama-status.error .ollama-status-icon {
+    background: #F44336;
+  }
+  
+  .ollama-status.processing .ollama-status-icon::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border: 2px solid transparent;
+    border-top-color: #2196F3;
+    border-radius: 50%;
+    animation: rotate 1s linear infinite;
+  }
+  
+  .ollama-status-text {
+    white-space: nowrap;
+  }
+  
+  .ollama-status-time {
+    color: #999;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+  
+  .ollama-cache-indicator {
+    width: 8px;
+    height: 8px;
+    background: #4CAF50;
+    border-radius: 50%;
+    margin-left: 4px;
+    opacity: 0.7;
   }
   
   @keyframes correctionPulse {
@@ -904,6 +1193,43 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Nettoyer les caches périodiquement
+setInterval(() => {
+  const now = Date.now();
+  
+  // Nettoyer le cache de correction
+  for (const [key, value] of correctionCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      correctionCache.delete(key);
+    }
+  }
+  
+  // Nettoyer le cache d'autocomplétion
+  for (const [key, value] of completionCache.entries()) {
+    if (now - value.timestamp > COMPLETION_CACHE_DURATION) {
+      completionCache.delete(key);
+    }
+  }
+  
+  // Afficher les stats dans la console (pour debug)
+  const totalElements = elementStates.size;
+  let totalCorrections = 0;
+  let totalCacheHits = 0;
+  let avgTime = 0;
+  
+  for (const state of elementStates.values()) {
+    totalCorrections += state.performanceStats.correctionCount;
+    totalCacheHits += state.performanceStats.cacheHits;
+    if (state.performanceStats.averageTime) {
+      avgTime += state.performanceStats.averageTime;
+    }
+  }
+  
+  if (totalElements > 0) {
+    console.log(`📊 Stats Ollama: ${totalCorrections} corrections, ${totalCacheHits} cache hits, temps moyen: ${Math.round(avgTime / totalElements)}ms`);
+  }
+}, 60000); // Toutes les minutes
 
 // Démarrer l'observation
 observeAllEditableElements();

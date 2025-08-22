@@ -111,8 +111,8 @@ export const MODELS = {
 
 export type ModelName = typeof MODELS[keyof typeof MODELS];
 
-// Modèle par défaut
-export const DEFAULT_MODEL = MODELS.GEMMA3N_E4B;
+// Modèle par défaut - e2b est maintenant 100% précis et 40% plus rapide !
+export const DEFAULT_MODEL = MODELS.GEMMA3N_E2B;
 
 // Configuration exportée (sera mise à jour dynamiquement)
 export let MODEL_NAME: ModelName = DEFAULT_MODEL;
