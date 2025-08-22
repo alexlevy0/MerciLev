@@ -70,7 +70,16 @@ EXEMPLES CRITIQUES:
 - "Sa va bien" → "Ça va bien" (PAS "Sa" qui est possessif)
 - "J'ai été a la plage" → "J'ai été à la plage" (PAS de changement du verbe)
 - "C'est temps sont difficile" → "Ces temps sont difficiles" (C'est→Ces + accord pluriel)
-- "Jene vais pas chercher de nouvelle ami" → "Je ne vais pas chercher de nouveaux amis"`;
+- "Jene vais pas chercher de nouvelle ami" → "Je ne vais pas chercher de nouveaux amis"
+- "Ils ce sont trompé" → "Ils se sont trompés" (ce→se + accord)
+- "pour allez au parc" → "pour aller au parc" (infinitif après préposition)
+- "Tout les jours" → "Tous les jours" (Tout→Tous devant article pluriel)
+
+RÈGLES CRITIQUES SUPPLÉMENTAIRES:
+- ce/se : "se" est réfléchi (se tromper, se lever), "ce" est démonstratif
+- Tout/Tous : "Tous" devant article pluriel ("tous les"), "Tout" sinon
+- Infinitif : après préposition (pour, de, à), toujours infinitif en -er/-ir/-re
+- Si phrase DÉJÀ CORRECTE : la retourner IDENTIQUE, ne rien changer`;
 
 export const AUTOCOMPLETION_SYSTEM_PROMPT = `Tu es un assistant d'écriture en français. Tu suggères des complétions pour aider l'utilisateur.
 

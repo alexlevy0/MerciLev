@@ -1,6 +1,24 @@
-background.js
-content.js
-popup.js
-
+# Node
 node_modules/
+package-lock.json
+
+# Build outputs
+*.js
+!test-*.js
+
+# Test outputs
+failed-tests.json
+failed-tests-report.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.log
 

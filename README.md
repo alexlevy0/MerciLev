@@ -21,38 +21,45 @@ npm run build
 
 ## Tests
 
-### Tests avec retry automatique
+### Script de test unifié
 
-Tous les tests incluent maintenant un système de retry automatique :
-- **3 essais maximum** par test
-- **500ms de délai** entre chaque essai
-- Les échecs persistants sont signalés pour correction du prompt
+Un seul script `test-all.ts` gère tous les tests avec les fonctionnalités suivantes :
+- **Retry automatique** : 3 essais maximum par test
+- **Comparaison de modèles** : Compare la précision et la vitesse
+- **Tests spécifiques** : Teste un modèle particulier
+- **Rapport détaillé** : Affiche les échecs et recommandations
 
 ```bash
-# Lancer tous les tests de correction (avec retry)
+# Test standard (modèle par défaut)
 npm test
+# ou
+./test-all.ts
 
-# Tester uniquement les cas problématiques
-npm run test:problematic
-
-# Comparer les modèles
+# Comparer tous les modèles
 npm run test:compare
+# ou
+./test-all.ts --compare
 
-# Build + Tests en une commande
+# Tester un modèle spécifique
+npm run test:e2b    # Test gemma3n:e2b
+npm run test:e4b    # Test gemma3n:e4b
+# ou
+./test-all.ts --model=gemma3n:e2b
+
+# Build + Tests
 npm run dev
+
+# Afficher l'aide
+./test-all.ts --help
 ```
 
-### Analyse des échecs
+### Prompt optimisé
 
-Les tests qui échouent après 3 essais sont :
-1. Affichés en détail à la fin des tests
-2. Signalés pour ajustement du prompt
-3. Peuvent être sauvegardés pour analyse
-
-```bash
-# Voir les derniers tests échoués
-./save-failed-tests.ts
-```
+Le prompt a été amélioré avec :
+- **Règles spécifiques** pour ce/se, Tout/Tous
+- **Exemples critiques** pour chaque type d'erreur
+- **Instructions claires** pour les phrases déjà correctes
+- **Gestion des infinitifs** après prépositions
 
 ## Exécution directe des scripts
 

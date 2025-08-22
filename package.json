@@ -5,11 +5,10 @@
   "scripts": {
     "check": "node --experimental-strip-types --no-warnings check-env.ts",
     "build": "node --experimental-strip-types --no-warnings build.ts",
-    "test": "node --experimental-strip-types --no-warnings run-tests.ts",
-    "test:problematic": "node --experimental-strip-types --no-warnings test-problematic-runner.ts",
-    "test:e4b": "node --experimental-strip-types --no-warnings test-with-model.ts gemma3n:e4b",
-    "test:e2b": "node --experimental-strip-types --no-warnings test-with-model.ts gemma3n:e2b",
-    "test:compare": "node --experimental-strip-types --no-warnings compare-models.ts",
+    "test": "node --experimental-strip-types --no-warnings test-all.ts",
+    "test:compare": "node --experimental-strip-types --no-warnings test-all.ts --compare",
+    "test:e4b": "node --experimental-strip-types --no-warnings test-all.ts --model=gemma3n:e4b",
+    "test:e2b": "node --experimental-strip-types --no-warnings test-all.ts --model=gemma3n:e2b",
     "dev": "npm run build && npm test",
     "postinstall": "npm run check"
   },
