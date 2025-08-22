@@ -107,10 +107,12 @@ Retourne la phrase corrigée.`;
     
     // Nettoyer la réponse de Qwen qui ajoute des guillemets
     if (MODEL_NAME === 'qwen2.5:3b') {
-      // Enlever les guillemets au début et à la fin
-      result = result.replace(/^[""]|[""]$/g, '');
-      // Enlever les doubles guillemets
-      result = result.replace(/^""|""$/g, '');
+      // Enlever tous les types de guillemets au début et à la fin
+      result = result.replace(/^["""""«»]+|["""""«»]+$/g, '');
+      // Si la phrase entière est entre guillemets doubles
+      if (result.startsWith('"') && result.endsWith('"')) {
+        result = result.slice(1, -1);
+      }
     }
     
     return result;
