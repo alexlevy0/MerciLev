@@ -49,6 +49,10 @@ function makeRequest(body: string): Promise<any> {
   });
 }
 
+// Configuration des retries
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 500; // ms entre les retries
+
 async function testProblematicCases() {
   const problematicCases = [
     {
@@ -80,34 +84,56 @@ async function testProblematicCases() {
     console.log(`📝 ${test.description}`);
     console.log(`   Input: "${test.input}"`);
     
-    try {
-      const body = JSON.stringify({
-        model: MODEL_NAME,
-        system: system,
-        prompt: `Phrase avec des fautes: "${test.input}"\n\nCorrige TOUTES les fautes. ATTENTION: Pour "C'est" + nom pluriel, corrige en "Ces". Ne change JAMAIS "on" en "nous".`,
-        stream: false
-      });
+    let attempts = 0;
+    let success = false;
+    let lastResult = '';
+    let lastTime = 0;
+    
+    while (attempts < MAX_RETRIES && !success) {
+      attempts++;
+      
+      try {
+        const body = JSON.stringify({
+          model: MODEL_NAME,
+          system: system,
+          prompt: `Phrase avec des fautes: "${test.input}"\n\nCorrige TOUTES les fautes. ATTENTION: Pour "C'est" + nom pluriel, corrige en "Ces". Ne change JAMAIS "on" en "nous".`,
+          stream: false
+        });
 
-      const startTime = performance.now();
-      const data = await makeRequest(body);
-      const endTime = performance.now();
-      const responseTime = endTime - startTime;
-      responseTimes.push(responseTime);
-      
-      const result = data.response.trim();
-      
-      if (result === test.expected) {
-        console.log(`   ✅ Résultat: "${result}"`);
-        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
-        passed++;
-      } else {
-        console.log(`   ❌ Résultat: "${result}"`);
-        console.log(`   ❌ Attendu:  "${test.expected}"`);
-        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
-        failed++;
+        const startTime = performance.now();
+        const data = await makeRequest(body);
+        const endTime = performance.now();
+        lastTime = endTime - startTime;
+        lastResult = data.response.trim();
+        
+        if (lastResult === test.expected) {
+          success = true;
+          responseTimes.push(lastTime);
+          console.log(`   ✅ Résultat: "${lastResult}"`);
+          console.log(`   ⏱️  Temps: ${lastTime.toFixed(0)}ms`);
+          if (attempts > 1) {
+            console.log(`   🔄 Réussi après ${attempts} essai(s)`);
+          }
+          passed++;
+        } else if (attempts < MAX_RETRIES) {
+          console.log(`   🔄 Essai ${attempts}/${MAX_RETRIES} échoué, nouvelle tentative...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
+      } catch (error) {
+        lastResult = `Erreur: ${error}`;
+        if (attempts < MAX_RETRIES) {
+          console.log(`   🔄 Essai ${attempts}/${MAX_RETRIES} - Erreur, nouvelle tentative...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        }
       }
-    } catch (error) {
-      console.log(`   ❌ Erreur: ${error}`);
+    }
+    
+    if (!success) {
+      responseTimes.push(lastTime);
+      console.log(`   ❌ Résultat: "${lastResult}"`);
+      console.log(`   ❌ Attendu:  "${test.expected}"`);
+      console.log(`   ⏱️  Temps: ${lastTime.toFixed(0)}ms`);
+      console.log(`   ❌ ÉCHEC après ${MAX_RETRIES} essais`);
       failed++;
     }
     

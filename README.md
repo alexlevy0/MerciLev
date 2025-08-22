@@ -21,15 +21,37 @@ npm run build
 
 ## Tests
 
+### Tests avec retry automatique
+
+Tous les tests incluent maintenant un système de retry automatique :
+- **3 essais maximum** par test
+- **500ms de délai** entre chaque essai
+- Les échecs persistants sont signalés pour correction du prompt
+
 ```bash
-# Lancer tous les tests de correction
+# Lancer tous les tests de correction (avec retry)
 npm test
 
 # Tester uniquement les cas problématiques
 npm run test:problematic
 
+# Comparer les modèles
+npm run test:compare
+
 # Build + Tests en une commande
 npm run dev
+```
+
+### Analyse des échecs
+
+Les tests qui échouent après 3 essais sont :
+1. Affichés en détail à la fin des tests
+2. Signalés pour ajustement du prompt
+3. Peuvent être sauvegardés pour analyse
+
+```bash
+# Voir les derniers tests échoués
+./save-failed-tests.ts
 ```
 
 ## Exécution directe des scripts

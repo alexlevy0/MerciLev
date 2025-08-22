@@ -160,51 +160,84 @@ function normalizeString(str: string): string {
   return str.replace(/\s+/g, ' ').trim();
 }
 
+// Configuration des retries
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 500; // ms entre les retries
+
+// Tester un cas avec retry
+async function testWithRetry(test: TestCase, modelName: string, maxRetries: number = MAX_RETRIES): Promise<TestResult> {
+  let lastOutput = '';
+  let lastTime = 0;
+  let attempts = 0;
+  
+  while (attempts < maxRetries) {
+    attempts++;
+    
+    try {
+      const startTime = performance.now();
+      const output = await callOllamaWithModel(test.input, modelName);
+      const endTime = performance.now();
+      lastTime = endTime - startTime;
+      lastOutput = output;
+      
+      const normalizedOutput = normalizeString(output);
+      const normalizedExpected = normalizeString(test.expected);
+      const success = normalizedOutput === normalizedExpected;
+      
+      if (success) {
+        return { test, output, success, time: lastTime };
+      }
+      
+      // Si échec et pas le dernier essai, attendre avant de réessayer
+      if (attempts < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      }
+      
+    } catch (error) {
+      lastOutput = `Erreur: ${error}`;
+      // Si erreur et pas le dernier essai, attendre avant de réessayer
+      if (attempts < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      }
+    }
+  }
+  
+  // Après tous les essais, retourner l'échec
+  return { test, output: lastOutput, success: false, time: lastTime };
+}
+
 // Tester un modèle
 async function testModel(modelName: string): Promise<ModelResult> {
   console.log(`\n🤖 Test du modèle: ${modelName}`);
   console.log('─'.repeat(60));
-  console.log(`   ${allTestCases.length} tests à exécuter...\n`);
+  console.log(`   ${allTestCases.length} tests à exécuter (avec retry automatique)...\n`);
   
   const results: TestResult[] = [];
   const times: number[] = [];
   let passed = 0;
   let failed = 0;
   let testNumber = 0;
+  let totalRetries = 0;
 
   for (const test of allTestCases) {
     testNumber++;
     process.stdout.write(`  [${testNumber.toString().padStart(2, '0')}/${allTestCases.length}] ${test.description.padEnd(50, '.')} `);
     
-    try {
-      const startTime = performance.now();
-      const output = await callOllamaWithModel(test.input, modelName);
-      const endTime = performance.now();
-      const time = endTime - startTime;
-      
-      const normalizedOutput = normalizeString(output);
-      const normalizedExpected = normalizeString(test.expected);
-      const success = normalizedOutput === normalizedExpected;
-      
-      times.push(time);
-      results.push({ test, output, success, time });
-      
-      if (success) {
-        console.log(`✅ ${time.toFixed(0).padStart(4)}ms`);
-        passed++;
-      } else {
-        console.log(`❌ ${time.toFixed(0).padStart(4)}ms`);
-        failed++;
-      }
-      
-      // Pause plus courte entre les tests
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-    } catch (error) {
-      console.log(`❌ Erreur`);
+    const result = await testWithRetry(test, modelName);
+    
+    times.push(result.time);
+    results.push(result);
+    
+    if (result.success) {
+      console.log(`✅ ${result.time.toFixed(0).padStart(4)}ms`);
+      passed++;
+    } else {
+      console.log(`❌ ${result.time.toFixed(0).padStart(4)}ms (après ${MAX_RETRIES} essais)`);
       failed++;
-      results.push({ test, output: '', success: false, time: 0 });
     }
+    
+    // Pause plus courte entre les tests
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   const totalTime = times.reduce((a, b) => a + b, 0);

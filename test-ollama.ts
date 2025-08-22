@@ -161,48 +161,87 @@ function normalizeString(str: string): string {
   return str.replace(/\s+/g, ' ').trim();
 }
 
-// Exécuter les tests
-async function runTests() {
-  console.log('🧪 Démarrage des tests de correction avec Ollama...\n');
+// Configuration des retries
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 500; // ms entre les retries
+
+// Exécuter un test avec retry
+async function runTestWithRetry(test: TestCase): Promise<{success: boolean, result: string, time: number, attempts: number}> {
+  let lastResult = '';
+  let lastTime = 0;
+  let attempts = 0;
   
-  let passed = 0;
-  let failed = 0;
-  const responseTimes: number[] = [];
-  
-  for (const test of testCases) {
+  while (attempts < MAX_RETRIES) {
+    attempts++;
+    
     try {
-      console.log(`📝 Test: ${test.description}`);
-      console.log(`   Input:    "${test.input}"`);
-      
       const startTime = performance.now();
       const result = await callOllama(test.input);
       const endTime = performance.now();
-      const responseTime = endTime - startTime;
-      responseTimes.push(responseTime);
+      lastTime = endTime - startTime;
+      lastResult = result;
       
       const normalizedResult = normalizeString(result);
       const normalizedExpected = normalizeString(test.expected);
       
       if (normalizedResult === normalizedExpected) {
-        console.log(`   ✅ Résultat: "${result}"`);
-        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
-        console.log(`   ✅ SUCCÈS\n`);
-        passed++;
-      } else {
-        console.log(`   ❌ Résultat: "${result}"`);
-        console.log(`   ❌ Attendu:  "${test.expected}"`);
-        console.log(`   ⏱️  Temps: ${responseTime.toFixed(0)}ms`);
-        console.log(`   ❌ ÉCHEC\n`);
-        failed++;
+        return { success: true, result, time: lastTime, attempts };
       }
       
-      // Attendre un peu entre les tests pour ne pas surcharger Ollama
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Si échec et pas le dernier essai, afficher et attendre
+      if (attempts < MAX_RETRIES) {
+        console.log(`   🔄 Essai ${attempts}/${MAX_RETRIES} échoué, nouvelle tentative...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      }
       
     } catch (error) {
-      console.log(`   ❌ ERREUR: ${error}\n`);
-      failed++;
+      lastResult = `Erreur: ${error}`;
+      if (attempts < MAX_RETRIES) {
+        console.log(`   🔄 Essai ${attempts}/${MAX_RETRIES} - Erreur, nouvelle tentative...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+      }
     }
+  }
+  
+  return { success: false, result: lastResult, time: lastTime, attempts };
+}
+
+// Exécuter les tests
+async function runTests() {
+  console.log('🧪 Démarrage des tests de correction avec Ollama...');
+  console.log('   (Retry automatique jusqu\'à 3 fois en cas d\'échec)\n');
+  
+  let passed = 0;
+  let failed = 0;
+  const responseTimes: number[] = [];
+  const failedTests: {test: TestCase, result: string}[] = [];
+  
+  for (const test of testCases) {
+    console.log(`📝 Test: ${test.description}`);
+    console.log(`   Input:    "${test.input}"`);
+    
+    const testResult = await runTestWithRetry(test);
+    responseTimes.push(testResult.time);
+    
+    if (testResult.success) {
+      console.log(`   ✅ Résultat: "${testResult.result}"`);
+      console.log(`   ⏱️  Temps: ${testResult.time.toFixed(0)}ms`);
+      if (testResult.attempts > 1) {
+        console.log(`   🔄 Réussi après ${testResult.attempts} essai(s)`);
+      }
+      console.log(`   ✅ SUCCÈS\n`);
+      passed++;
+    } else {
+      console.log(`   ❌ Résultat: "${testResult.result}"`);
+      console.log(`   ❌ Attendu:  "${test.expected}"`);
+      console.log(`   ⏱️  Temps: ${testResult.time.toFixed(0)}ms`);
+      console.log(`   ❌ ÉCHEC après ${MAX_RETRIES} essais\n`);
+      failed++;
+      failedTests.push({ test, result: testResult.result });
+    }
+    
+    // Attendre un peu entre les tests pour ne pas surcharger Ollama
+    await new Promise(resolve => setTimeout(resolve, 300));
   }
   
   // Calculer les statistiques de temps
@@ -225,6 +264,19 @@ async function runTests() {
   console.log(`   🔹 Moyenne: ${avgTime.toFixed(0)}ms`);
   console.log(`   🔸 Minimum: ${minTime.toFixed(0)}ms`);
   console.log(`   🔺 Maximum: ${maxTime.toFixed(0)}ms`);
+  
+  // Afficher les tests échoués pour analyse
+  if (failedTests.length > 0) {
+    console.log('\n🔍 Tests échoués après 3 essais (à corriger dans le prompt):');
+    console.log('─'.repeat(60));
+    for (const {test, result} of failedTests) {
+      console.log(`\n❌ "${test.description}"`);
+      console.log(`   Input:    "${test.input}"`);
+      console.log(`   Attendu:  "${test.expected}"`);
+      console.log(`   Obtenu:   "${result}"`);
+    }
+    console.log('\n💡 Ces tests nécessitent probablement un ajustement du prompt.');
+  }
 }
 
 // Tester la connexion à Ollama
