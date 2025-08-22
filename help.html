@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Installation - Correcteur Français Ollama</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 36px;
+    }
+    
+    .header p {
+      margin: 0;
+      font-size: 18px;
+      opacity: 0.9;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    
+    h2 {
+      color: #2563eb;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .step {
+      display: flex;
+      align-items: flex-start;
+      margin: 20px 0;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .step-number {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      background: #2563eb;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      margin-right: 20px;
+    }
+    
+    .step-content {
+      flex: 1;
+    }
+    
+    .step-content h3 {
+      margin: 0 0 10px 0;
+      color: #1f2937;
+    }
+    
+    .step-content p {
+      margin: 5px 0;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    
+    code {
+      background: #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 14px;
+    }
+    
+    .code-block {
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 15px 0;
+      overflow-x: auto;
+      position: relative;
+    }
+    
+    .code-block code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #374151;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .copy-btn:hover {
+      background: #4b5563;
+    }
+    
+    .platform-selector {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    .platform-btn {
+      padding: 10px 20px;
+      background: #e5e7eb;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .platform-btn:hover {
+      background: #d1d5db;
+    }
+    
+    .platform-btn.active {
+      background: #2563eb;
+      color: white;
+      border-color: #1d4ed8;
+    }
+    
+    .platform-content {
+      display: none;
+    }
+    
+    .platform-content.active {
+      display: block;
+    }
+    
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 30px;
+      background: #2563eb;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: background 0.2s;
+      margin: 10px 0;
+    }
+    
+    .download-btn:hover {
+      background: #1d4ed8;
+    }
+    
+    .status-check {
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .status-check h3 {
+      margin: 0 0 10px 0;
+      color: #92400e;
+    }
+    
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-indicator.success {
+      background: #10b981;
+    }
+    
+    .status-indicator.error {
+      background: #ef4444;
+    }
+    
+    .status-indicator.loading {
+      background: #f59e0b;
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .troubleshooting {
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    
+    .troubleshooting h4 {
+      margin: 0 0 10px 0;
+      color: #991b1b;
+    }
+    
+    .quick-start {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+      border: 2px solid #10b981;
+      border-radius: 12px;
+      padding: 25px;
+      margin: 30px 0;
+      text-align: center;
+    }
+    
+    .quick-start h3 {
+      color: #065f46;
+      margin: 0 0 15px 0;
+      font-size: 24px;
+    }
+    
+    .quick-start-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .quick-start-btn:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🚀 Installation du Correcteur Français</h1>
+    <p>Guide complet pour installer et configurer Ollama</p>
+  </div>
+  
+  <div class="container">
+    <!-- Statut actuel -->
+    <div class="card">
+      <h2>📊 Statut actuel</h2>
+      <div class="status-check">
+        <h3><span class="status-indicator loading" id="statusIndicator"></span>Vérification en cours...</h3>
+        <p id="statusMessage">Détection d'Ollama sur votre système...</p>
+      </div>
+    </div>
+    
+    <!-- Installation rapide -->
+    <div class="card" id="quickInstall" style="display: none;">
+      <div class="quick-start">
+        <h3>🎉 Installation en un clic !</h3>
+        <p>Nous avons détecté que vous pouvez utiliser notre installateur automatique.</p>
+        <button class="quick-start-btn" onclick="runInstaller()">
+          Lancer l'installation automatique
+        </button>
+      </div>
+    </div>
+    
+    <!-- Sélecteur de plateforme -->
+    <div class="card">
+      <h2>💻 Choisissez votre système</h2>
+      <div class="platform-selector">
+        <button class="platform-btn active" onclick="selectPlatform('windows')">
+          Windows
+        </button>
+        <button class="platform-btn" onclick="selectPlatform('macos')">
+          macOS
+        </button>
+        <button class="platform-btn" onclick="selectPlatform('linux')">
+          Linux
+        </button>
+      </div>
+      
+      <!-- Instructions Windows -->
+      <div class="platform-content active" id="windows">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Télécharger Ollama</h3>
+            <p>Téléchargez l'installateur Windows officiel</p>
+            <a href="https://ollama.ai/download/windows" class="download-btn" target="_blank">
+              ⬇️ Télécharger OllamaSetup.exe
+            </a>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Installer Ollama</h3>
+            <p>Exécutez le fichier téléchargé et suivez l'assistant d'installation</p>
+            <p>L'installation prend généralement moins d'une minute</p>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Configurer et lancer</h3>
+            <p>Ouvrez PowerShell et exécutez :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>$env:OLLAMA_ORIGINS="*"
+ollama serve</code>
+            </div>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Installer le modèle</h3>
+            <p>Dans un nouveau PowerShell, exécutez :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>ollama pull gemma3n:e2b</code>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Script de lancement Windows -->
+        <h3>🎯 Créer un raccourci de lancement</h3>
+        <p>Créez un fichier <code>correcteur-francais.bat</code> sur votre bureau :</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+          <code>@echo off
+echo Démarrage du Correcteur Français...
+set OLLAMA_ORIGINS=*
+start /B ollama serve
+timeout /t 3 /nobreak > nul
+start chrome
+echo.
+echo Ollama est en cours d'exécution. Fermez cette fenêtre pour arrêter.
+pause > nul</code>
+        </div>
+      </div>
+      
+      <!-- Instructions macOS -->
+      <div class="platform-content" id="macos">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Télécharger Ollama</h3>
+            <p>Téléchargez l'application macOS</p>
+            <a href="https://ollama.ai/download/mac" class="download-btn" target="_blank">
+              ⬇️ Télécharger Ollama.app
+            </a>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Installer Ollama</h3>
+            <p>Glissez Ollama.app dans votre dossier Applications</p>
+            <p>Lancez l'application depuis Launchpad ou Spotlight</p>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Configurer et lancer</h3>
+            <p>Ouvrez Terminal et exécutez :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>export OLLAMA_ORIGINS="*"
+ollama serve</code>
+            </div>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Installer le modèle</h3>
+            <p>Dans un nouveau Terminal, exécutez :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>ollama pull gemma3n:e2b</code>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Instructions Linux -->
+      <div class="platform-content" id="linux">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Installation en une commande</h3>
+            <p>Ouvrez un terminal et exécutez :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>curl -fsSL https://ollama.ai/install.sh | sh</code>
+            </div>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Configurer et lancer</h3>
+            <p>Lancez Ollama avec les permissions Chrome :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>OLLAMA_ORIGINS="*" ollama serve</code>
+            </div>
+          </div>
+        </div>
+        
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Installer le modèle</h3>
+            <p>Dans un nouveau terminal :</p>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+              <code>ollama pull gemma3n:e2b</code>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Service systemd pour Linux -->
+        <h3>🔧 Configuration en service (optionnel)</h3>
+        <p>Pour démarrer Ollama automatiquement :</p>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">📋 Copier</button>
+          <code>sudo tee /etc/systemd/system/ollama.service > /dev/null << EOF
+[Unit]
+Description=Ollama Service
+After=network.target
+
+[Service]
+Type=simple
+Environment="OLLAMA_ORIGINS=*"
+ExecStart=/usr/local/bin/ollama serve
+Restart=always
+User=$USER
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl enable ollama
+sudo systemctl start ollama</code>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Dépannage -->
+    <div class="card">
+      <h2>🔧 Dépannage</h2>
+      
+      <div class="troubleshooting">
+        <h4>❌ Erreur "Access forbidden (403)"</h4>
+        <p>Assurez-vous de lancer Ollama avec <code>OLLAMA_ORIGINS="*"</code></p>
+        <p>Windows : <code>$env:OLLAMA_ORIGINS="*"</code> avant <code>ollama serve</code></p>
+        <p>macOS/Linux : <code>OLLAMA_ORIGINS="*" ollama serve</code></p>
+      </div>
+      
+      <div class="troubleshooting">
+        <h4>❌ "Connexion refusée"</h4>
+        <p>Vérifiez qu'Ollama est bien lancé avec <code>ollama serve</code></p>
+        <p>Le serveur doit écouter sur <code>http://localhost:11434</code></p>
+      </div>
+      
+      <div class="troubleshooting">
+        <h4>❌ Modèle non trouvé</h4>
+        <p>Installez le modèle avec : <code>ollama pull gemma3n:e2b</code></p>
+        <p>Vérifiez les modèles installés : <code>ollama list</code></p>
+      </div>
+    </div>
+    
+    <!-- Prochaines étapes -->
+    <div class="card">
+      <h2>✅ Prochaines étapes</h2>
+      <ol>
+        <li>Retournez dans Chrome</li>
+        <li>L'extension détectera automatiquement Ollama</li>
+        <li>Commencez à écrire pour voir les corrections !</li>
+      </ol>
+      
+      <p style="margin-top: 20px;">
+        <strong>💡 Conseil :</strong> Gardez Ollama en cours d'exécution pendant que vous utilisez l'extension.
+      </p>
+    </div>
+  </div>
+  
+  <script>
+    // Sélection de plateforme
+    function selectPlatform(platform) {
+      document.querySelectorAll('.platform-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.querySelectorAll('.platform-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      
+      event.target.classList.add('active');
+      document.getElementById(platform).classList.add('active');
+    }
+    
+    // Copier le code
+    function copyCode(button) {
+      const codeBlock = button.parentElement;
+      const code = codeBlock.querySelector('code').innerText;
+      
+      navigator.clipboard.writeText(code).then(() => {
+        button.textContent = '✅ Copié !';
+        setTimeout(() => {
+          button.textContent = '📋 Copier';
+        }, 2000);
+      });
+    }
+    
+    // Vérifier le statut d'Ollama
+    async function checkOllamaStatus() {
+      const indicator = document.getElementById('statusIndicator');
+      const message = document.getElementById('statusMessage');
+      const quickInstall = document.getElementById('quickInstall');
+      
+      try {
+        const response = await fetch('http://localhost:11434/api/version');
+        if (response.ok) {
+          indicator.className = 'status-indicator success';
+          message.textContent = 'Ollama est installé et fonctionne ! ✅';
+          quickInstall.style.display = 'none';
+        } else {
+          throw new Error('Not running');
+        }
+      } catch (error) {
+        indicator.className = 'status-indicator error';
+        message.textContent = 'Ollama n\'est pas détecté. Suivez les instructions ci-dessous.';
+        
+        // Afficher l'installation rapide si possible
+        if (navigator.platform.includes('Win')) {
+          quickInstall.style.display = 'block';
+        }
+      }
+    }
+    
+    // Lancer l'installateur
+    function runInstaller() {
+      // Télécharger et exécuter le script d'installation
+      const a = document.createElement('a');
+      a.href = 'install-helper.js';
+      a.download = 'install-ollama.js';
+      a.click();
+      
+      alert('1. Téléchargez le fichier install-ollama.js\n2. Ouvrez PowerShell\n3. Exécutez : node install-ollama.js');
+    }
+    
+    // Vérifier au chargement
+    checkOllamaStatus();
+    
+    // Revérifier toutes les 5 secondes
+    setInterval(checkOllamaStatus, 5000);
+  </script>
+</body>
+</html>
