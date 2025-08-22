@@ -87,7 +87,7 @@ RÈGLES CRITIQUES SUPPLÉMENTAIRES:
 export const MODELS = {
   GEMMA3N_E4B: 'gemma3n:e4b',
   GEMMA3N_E2B: 'gemma3n:e2b',
-  GRANITE_EMBEDDING: 'granite-embedding:278m',
+//   GRANITE_EMBEDDING: 'granite-embedding:278m',
 } as const;
 
 export type ModelName = typeof MODELS[keyof typeof MODELS];
