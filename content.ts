@@ -84,6 +84,15 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
   // Toujours ajouter l'indicateur au body en position fixed en bas à droite
   document.body.appendChild(indicator);
   
+  // Forcer l'indicateur à rester au-dessus de tout
+  setInterval(() => {
+    if (indicator.parentElement !== document.body) {
+      document.body.appendChild(indicator);
+    }
+    // S'assurer qu'il reste au z-index maximum
+    indicator.style.zIndex = '2147483647';
+  }, 1000);
+  
   return indicator;
 }
 
@@ -997,6 +1006,16 @@ function acceptSuggestion(state: InputState) {
 
 // Observer les changements sur un élément éditable
 function observeEditableElement(element: HTMLElement) {
+  // Pour les éléments dans contenteditable, s'assurer qu'ils peuvent recevoir le focus
+  const editableParent = element.closest('[contenteditable="true"], [contenteditable=""]');
+  if (editableParent && element !== editableParent) {
+    // Si l'élément n'a pas de contenteditable explicite et qu'il est dans un parent éditable
+    if (!element.hasAttribute('contenteditable') && element.contentEditable === 'inherit') {
+      // Rendre l'élément explicitement éditable pour capturer les événements
+      element.contentEditable = 'true';
+    }
+  }
+  
   const wrapper = createEditableWrapper(element);
   if (!wrapper || !wrapper.isEditable()) return;
   
@@ -1175,9 +1194,30 @@ function observeAllEditableElements() {
   const standardInputs = document.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
   standardInputs.forEach(element => observeEditableElement(element as HTMLElement));
   
-  // Éléments contenteditable
+  // Éléments contenteditable et leurs descendants
   const contentEditables = document.querySelectorAll('[contenteditable="true"], [contenteditable=""]');
-  contentEditables.forEach(element => observeEditableElement(element as HTMLElement));
+  contentEditables.forEach(element => {
+    observeEditableElement(element as HTMLElement);
+    
+    // Observer récursivement tous les éléments enfants éditables
+    const walkEditableTree = (node: Element) => {
+      // Observer les éléments de texte (p, div, span, etc.)
+      if (node.nodeType === Node.ELEMENT_NODE && 
+          ['P', 'DIV', 'SPAN', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'TD', 'TH'].includes(node.tagName)) {
+        const el = node as HTMLElement;
+        // Vérifier si cet élément est dans un contexte éditable
+        if (el.closest('[contenteditable="true"], [contenteditable=""]')) {
+          observeEditableElement(el);
+        }
+      }
+      // Parcourir les enfants
+      for (const child of node.children) {
+        walkEditableTree(child);
+      }
+    };
+    
+    walkEditableTree(element);
+  });
   
   // Éléments avec role="textbox"
   const textboxRoles = document.querySelectorAll('[role="textbox"]');
@@ -1203,7 +1243,19 @@ const mutationObserver = new MutationObserver((mutations) => {
           
           // Chercher dans les enfants
           const editables = element.querySelectorAll('input, textarea, [contenteditable], [role="textbox"], .editor, .text-editor');
-          editables.forEach(child => observeEditableElement(child as HTMLElement));
+          editables.forEach(child => {
+            observeEditableElement(child as HTMLElement);
+            
+            // Pour contenteditable, observer aussi tous les descendants
+            if (child.hasAttribute('contenteditable')) {
+              const walkDescendants = (parent: Element) => {
+                parent.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li').forEach(desc => {
+                  observeEditableElement(desc as HTMLElement);
+                });
+              };
+              walkDescendants(child);
+            }
+          });
         }
       });
     }
@@ -1303,6 +1355,7 @@ style.textContent = `
       0 8px 32px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
     z-index: 2147483647 !important;
+    pointer-events: all !important;
     pointer-events: auto;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     transform: translateY(0);
@@ -1347,9 +1400,9 @@ style.textContent = `
   }
   
   .ollama-status.processing {
-    background: rgba(139, 92, 246, 0.9);
+    background: rgba(75, 85, 99, 0.95);
     backdrop-filter: blur(20px) saturate(180%);
-    border-color: rgba(196, 181, 253, 0.3);
+    border-color: rgba(156, 163, 175, 0.3);
   }
   
   .ollama-status.error {
