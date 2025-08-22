@@ -584,6 +584,10 @@ function showErrorTooltip(input: HTMLInputElement | HTMLTextAreaElement, error: 
   }, 5000);
 }
 
+// Timer pour le délai avant correction
+let correctionTimeout: NodeJS.Timeout | null = null;
+let countdownInterval: NodeJS.Timeout | null = null;
+
 // Gérer la correction lors de l'espace
 async function handleSpacePress(state: InputState, spacePosition: number) {
   // Vérifier si l'extension est toujours valide avant de continuer
@@ -596,6 +600,12 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
   if (state.pendingCorrection) {
     state.pendingCorrection.abort();
     state.pendingCorrection = null;
+  }
+  
+  // Annuler le timer précédent s'il existe
+  if (correctionTimeout) {
+    clearTimeout(correctionTimeout);
+    correctionTimeout = null;
   }
   
   const text = state.element.getValue();
@@ -635,18 +645,46 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
     return;
   }
   
-  // Marquer cette position d'espace et démarrer la correction
+  // Marquer cette position d'espace
   state.lastSpacePosition = spacePosition;
-  state.correctionInProgress = true;
   
-  // Afficher l'indicateur de chargement
-  updateStatusIndicator(state, 'loading', 'Connexion...');
+  // Afficher un indicateur d'attente avec compte à rebours
+  let countdown = 3;
+  updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
   
-  // Créer un AbortController pour pouvoir annuler cette correction
-  const abortController = new AbortController();
-  state.pendingCorrection = abortController;
+  // Mettre à jour le compte à rebours chaque seconde
+  countdownInterval = setInterval(() => {
+    countdown--;
+    if (countdown > 0) {
+      updateStatusIndicator(state, 'idle', `Attente ${countdown}s...`, 0);
+    }
+  }, 1000);
   
-  const startTime = performance.now();
+  // Attendre 3 secondes avant de commencer la correction
+  correctionTimeout = setTimeout(async () => {
+    // Arrêter le compte à rebours
+    clearInterval(countdownInterval);
+    // Vérifier que l'utilisateur n'a pas continué à taper
+    const currentText = state.element.getValue();
+    const currentCaretPos = state.element.getCaretPosition();
+    
+    // Si l'utilisateur a tapé après l'espace, annuler
+    if (currentCaretPos > spacePosition + 1 || currentText !== text) {
+      updateStatusIndicator(state, 'idle', 'Annulé', 0);
+      return;
+    }
+    
+    // Démarrer la correction
+    state.correctionInProgress = true;
+    
+    // Afficher l'indicateur de chargement
+    updateStatusIndicator(state, 'loading', 'Connexion...');
+    
+    // Créer un AbortController pour pouvoir annuler cette correction
+    const abortController = new AbortController();
+    state.pendingCorrection = abortController;
+    
+    const startTime = performance.now();
   
   try {
     updateStatusIndicator(state, 'processing', 'Analyse...');
@@ -770,6 +808,7 @@ async function handleSpacePress(state: InputState, spacePosition: number) {
       state.pendingCorrection = null;
     }
   }
+  }, 3000); // Attendre 3 secondes
 }
 
 // Autocomplétion supprimée pour améliorer les performances
@@ -1058,6 +1097,17 @@ async function handleInput(state: InputState, event: InputEvent) {
   if (state.pendingCorrection && caretPos > state.lastSpacePosition) {
     state.pendingCorrection.abort();
     state.pendingCorrection = null;
+  }
+  
+  // Annuler le timeout de correction si on tape
+  if (correctionTimeout) {
+    clearTimeout(correctionTimeout);
+    correctionTimeout = null;
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+    updateStatusIndicator(state, 'idle', 'Annulé', 0);
   }
   
   // Détecter si un espace ou une ponctuation a été ajoutée
@@ -1500,6 +1550,8 @@ function cleanup() {
   // Arrêter les intervalles
   if (typeof cleanupInterval !== 'undefined') clearInterval(cleanupInterval);
   if (typeof reobserveInterval !== 'undefined') clearInterval(reobserveInterval);
+  if (correctionTimeout) clearTimeout(correctionTimeout);
+  if (countdownInterval) clearInterval(countdownInterval);
   
   // Déconnecter les observers
   mutationObserver.disconnect();
