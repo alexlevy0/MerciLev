@@ -42,11 +42,65 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
     <div class="ollama-status-icon"></div>
     <span class="ollama-status-text">Prêt</span>
     <span class="ollama-status-time"></span>
+    <span class="ollama-status-count">0</span>
+    <div class="ollama-status-details"></div>
   `;
   
-  // Positionner l'indicateur
-  const parent = wrapper.element.parentElement;
-  if (parent) {
+  // Positionner l'indicateur selon le type d'élément
+  const element = wrapper.element;
+  const parent = element.parentElement;
+  
+  // Détecter si l'élément est petit
+  const rect = element.getBoundingClientRect();
+  if (rect.width < 300 || rect.height < 40) {
+    indicator.classList.add('compact');
+  }
+  
+  if (wrapper.type === 'contenteditable' || wrapper.type === 'custom') {
+    // Pour contenteditable, positionner en fixed
+    document.body.appendChild(indicator);
+    indicator.style.position = 'fixed';
+    
+    const updatePosition = () => {
+      const newRect = element.getBoundingClientRect();
+      const indicatorWidth = 200;
+      let left = newRect.right - indicatorWidth;
+      let top = newRect.top + 5;
+      
+      // Ajuster si dépassement de l'écran
+      if (left < 10) left = 10;
+      if (left + indicatorWidth > window.innerWidth - 10) {
+        left = window.innerWidth - indicatorWidth - 10;
+      }
+      
+      indicator.style.left = `${left}px`;
+      indicator.style.top = `${top}px`;
+    };
+    
+    updatePosition();
+    
+    // Mettre à jour lors du scroll/resize
+    let updateTimeout: number | undefined;
+    const debouncedUpdate = () => {
+      if (updateTimeout) clearTimeout(updateTimeout);
+      updateTimeout = setTimeout(updatePosition, 10);
+    };
+    
+    window.addEventListener('scroll', debouncedUpdate, { passive: true });
+    window.addEventListener('resize', debouncedUpdate, { passive: true });
+    
+    // Nettoyer l'indicateur si l'élément est supprimé
+    const observer = new MutationObserver(() => {
+      if (!document.contains(element)) {
+        indicator.remove();
+        window.removeEventListener('scroll', debouncedUpdate);
+        window.removeEventListener('resize', debouncedUpdate);
+        observer.disconnect();
+      }
+    });
+    observer.observe(element.parentElement || document.body, { childList: true, subtree: true });
+  } else if (parent) {
+    // Pour input/textarea standard
     parent.style.position = 'relative';
     parent.appendChild(indicator);
   }
@@ -61,52 +115,100 @@ function updateStatusIndicator(state: InputState, status: 'idle' | 'loading' | '
   const indicator = state.statusIndicator;
   const textElement = indicator.querySelector('.ollama-status-text') as HTMLElement;
   const timeElement = indicator.querySelector('.ollama-status-time') as HTMLElement;
+  const countElement = indicator.querySelector('.ollama-status-count') as HTMLElement;
+  const detailsElement = indicator.querySelector('.ollama-status-details') as HTMLElement;
   
   // Réinitialiser les classes
   indicator.classList.remove('hidden', 'loading', 'processing', 'error', 'cached');
   
+  // Mettre à jour le compteur
+  const totalQueries = state.performanceStats.correctionCount + state.performanceStats.cacheHits;
+  countElement.textContent = `${totalQueries}`;
+  
+  // Créer le texte détaillé
+  const avgTime = state.performanceStats.averageTime ? Math.round(state.performanceStats.averageTime) : 0;
+  const cacheRate = totalQueries > 0 ? Math.round((state.performanceStats.cacheHits / totalQueries) * 100) : 0;
+  
   switch (status) {
     case 'idle':
-      indicator.classList.add('hidden');
+      if (time === 0) {
+        // Ne pas masquer si on vient d'afficher un résultat
+        indicator.classList.remove('hidden');
+        textElement.textContent = text || 'OK';
+      } else {
+        indicator.classList.add('hidden');
+      }
       break;
     case 'loading':
       indicator.classList.remove('hidden');
       indicator.classList.add('loading');
       textElement.textContent = text || 'Connexion...';
+      detailsElement.textContent = `Requête #${totalQueries + 1}`;
       break;
     case 'processing':
       indicator.classList.remove('hidden');
       indicator.classList.add('processing');
       textElement.textContent = text || 'Analyse...';
+      detailsElement.textContent = `Moy: ${avgTime}ms | Cache: ${cacheRate}%`;
       break;
     case 'error':
       indicator.classList.remove('hidden');
       indicator.classList.add('error');
       textElement.textContent = text || 'Erreur';
+      detailsElement.textContent = 'Vérifier Ollama';
       break;
     case 'cached':
       indicator.classList.remove('hidden');
-      textElement.textContent = text || 'Cache';
-      if (indicator.querySelector('.ollama-cache-indicator') === null) {
-        const cacheIcon = document.createElement('div');
-        cacheIcon.className = 'ollama-cache-indicator';
-        indicator.appendChild(cacheIcon);
-      }
+      indicator.classList.add('cached');
+      textElement.textContent = '⚡ Cache';
+      detailsElement.textContent = `Hit #${state.performanceStats.cacheHits}/${totalQueries}`;
+      
+      // Ajouter l'animation de cache
+      const cacheIcon = document.createElement('span');
+      cacheIcon.className = 'cache-hit-animation';
+      cacheIcon.textContent = '💾';
+      indicator.appendChild(cacheIcon);
+      setTimeout(() => cacheIcon.remove(), 1000);
       break;
   }
   
-  // Afficher le temps si disponible
-  if (time && timeElement) {
-    timeElement.textContent = `${time}ms`;
-  } else if (timeElement) {
-    timeElement.textContent = '';
+  // Afficher le temps avec animation
+  if (time !== undefined && timeElement) {
+    if (time === 0) {
+      timeElement.innerHTML = '<span class="instant">0ms</span>';
+    } else {
+      timeElement.textContent = `${time}ms`;
+      // Animation pour les temps longs
+      if (time > 5000) {
+        timeElement.classList.add('slow');
+      } else if (time < 1000) {
+        timeElement.classList.add('fast');
+      }
+    }
+    
+    // Garder le dernier temps affiché
+    state.performanceStats.lastCorrectionTime = time;
+  } else if (state.performanceStats.lastCorrectionTime && timeElement) {
+    timeElement.textContent = `${state.performanceStats.lastCorrectionTime}ms`;
+    timeElement.style.opacity = '0.6';
   }
   
-  // Masquer automatiquement après 3 secondes pour idle
-  if (status === 'idle') {
+  // Animation de transition pour les changements de statut
+  indicator.style.animation = 'none';
+  setTimeout(() => {
+    indicator.style.animation = 'statusChange 0.3s ease-out';
+  }, 10);
+  
+  // Masquer automatiquement après un délai variable
+  if (status === 'idle' || status === 'cached') {
+    const hideDelay = status === 'cached' ? 2000 : 4000;
     setTimeout(() => {
-      indicator.classList.add('hidden');
-    }, 3000);
+      indicator.classList.add('fading');
+      setTimeout(() => {
+        indicator.classList.add('hidden');
+        indicator.classList.remove('fading');
+      }, 300);
+    }, hideDelay);
   }
 }
 
@@ -823,6 +925,37 @@ function observeEditableElement(element: HTMLElement) {
   
   elementStates.set(element, state);
   
+  // Observer le redimensionnement pour les contenteditable
+  if (wrapper.type === 'contenteditable' || wrapper.type === 'custom') {
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(() => {
+        if (state.statusIndicator && !state.statusIndicator.classList.contains('hidden')) {
+          const rect = element.getBoundingClientRect();
+          const indicatorWidth = 200;
+          let left = rect.right - indicatorWidth;
+          let top = rect.top + 5;
+          
+          // Ajuster si dépassement
+          if (left < 10) left = 10;
+          if (left + indicatorWidth > window.innerWidth - 10) {
+            left = window.innerWidth - indicatorWidth - 10;
+          }
+          
+          state.statusIndicator.style.left = `${left}px`;
+          state.statusIndicator.style.top = `${top}px`;
+          
+          // Mettre à jour le mode compact si nécessaire
+          if (rect.width < 300 || rect.height < 40) {
+            state.statusIndicator.classList.add('compact');
+          } else {
+            state.statusIndicator.classList.remove('compact');
+          }
+        }
+      });
+      resizeObserver.observe(element);
+    }
+  }
+  
   // Observer les changements selon le type d'élément
   if (wrapper.type === 'input' || wrapper.type === 'textarea') {
     observeInputElement(element as HTMLInputElement | HTMLTextAreaElement, state);
@@ -1083,70 +1216,204 @@ style.textContent = `
     transform: translateY(-50%);
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 12px;
-    font-size: 11px;
+    gap: 8px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 250, 251, 0.98) 100%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    font-size: 12px;
     font-family: system-ui, -apple-system, sans-serif;
-    color: #666;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    color: #374151;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
     z-index: 10001;
     pointer-events: none;
-    transition: opacity 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(8px);
   }
   
   .ollama-status.hidden {
     opacity: 0;
+    transform: translateY(-50%) scale(0.9);
+  }
+  
+  .ollama-status.fading {
+    opacity: 0;
+    transform: translateY(-50%) translateX(20px);
   }
   
   .ollama-status-icon {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: #4CAF50;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     position: relative;
+    flex-shrink: 0;
   }
   
   .ollama-status.loading .ollama-status-icon {
-    background: #FF9800;
-    animation: pulse 1s infinite;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   
   .ollama-status.error .ollama-status-icon {
-    background: #F44336;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  }
+  
+  .ollama-status.cached .ollama-status-icon {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  }
+  
+  .ollama-status.processing .ollama-status-icon {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   }
   
   .ollama-status.processing .ollama-status-icon::after {
     content: '';
     position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
     border: 2px solid transparent;
-    border-top-color: #2196F3;
+    border-top-color: #3b82f6;
+    border-right-color: #3b82f6;
     border-radius: 50%;
-    animation: rotate 1s linear infinite;
+    animation: rotate 0.8s linear infinite;
   }
   
   .ollama-status-text {
     white-space: nowrap;
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
   
   .ollama-status-time {
-    color: #999;
-    font-size: 10px;
+    color: #6b7280;
+    font-size: 11px;
+    font-weight: 600;
     margin-left: 4px;
+    padding: 2px 6px;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 6px;
+    transition: all 0.2s ease;
   }
   
-  .ollama-cache-indicator {
-    width: 8px;
-    height: 8px;
-    background: #4CAF50;
-    border-radius: 50%;
+  .ollama-status-time.slow {
+    color: #dc2626;
+    background: rgba(239, 68, 68, 0.1);
+  }
+  
+  .ollama-status-time.fast {
+    color: #059669;
+    background: rgba(16, 185, 129, 0.1);
+  }
+  
+  .ollama-status-time .instant {
+    color: #8b5cf6;
+    font-weight: 700;
+  }
+  
+  .ollama-status-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .ollama-status-details {
+    font-size: 10px;
+    color: #9ca3af;
     margin-left: 4px;
-    opacity: 0.7;
+    opacity: 0.8;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .cache-hit-animation {
+    position: absolute;
+    top: -20px;
+    right: 10px;
+    font-size: 20px;
+    animation: cacheHit 1s ease-out forwards;
+  }
+  
+  @keyframes cacheHit {
+    0% {
+      transform: translateY(0) scale(0.5);
+      opacity: 0;
+    }
+    50% {
+      transform: translateY(-10px) scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-20px) scale(0.8);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes statusChange {
+    0% {
+      transform: translateY(-50%) scale(0.95);
+    }
+    50% {
+      transform: translateY(-50%) scale(1.02);
+    }
+    100% {
+      transform: translateY(-50%) scale(1);
+    }
+  }
+  
+  /* Mode compact pour les petits inputs */
+  .ollama-status.compact {
+    padding: 4px 8px;
+    gap: 4px;
+  }
+  
+  .ollama-status.compact .ollama-status-icon {
+    width: 10px;
+    height: 10px;
+  }
+  
+  .ollama-status.compact .ollama-status-text {
+    font-size: 10px;
+  }
+  
+  .ollama-status.compact .ollama-status-details {
+    display: none;
+  }
+  
+  /* Hover pour voir plus de détails */
+  .ollama-status:hover {
+    pointer-events: auto;
+    cursor: default;
+    transform: translateY(-50%) scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .ollama-status:hover .ollama-status-details {
+    display: block;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 10002;
   }
   
   @keyframes correctionPulse {
