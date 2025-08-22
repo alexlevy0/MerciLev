@@ -19,7 +19,7 @@ try {
 // Compiler avec esbuild
 console.log('📦 Compilation des fichiers TypeScript de l\'extension...');
 try {
-  execSync('npx esbuild background.ts content.ts popup.ts --bundle --outdir=. --format=iife', { 
+  execSync('npx esbuild background.ts content.ts popup.ts options.ts --bundle --outdir=. --format=iife', { 
     stdio: 'inherit' 
   });
   

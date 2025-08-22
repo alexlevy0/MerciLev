@@ -1,27 +1,90 @@
 // FICHIER: content.ts
 
-// Sites exclus pour éviter les conflits et les crashes
-const EXCLUDED_SITES = [
-  'slack.com',
-  'discord.com',
-  'messenger.com',
-  'facebook.com',
-  'teams.microsoft.com',
-  'notion.so',
-  'figma.com',
-  'docs.google.com',
-  'sheets.google.com',
-  'mail.google.com',
-  'outlook.office.com',
-  'outlook.live.com'
-];
+// Configuration de l'extension
+interface ExtensionSettings {
+  globalMode: 'normal' | 'performance' | 'smart';
+  sites: Array<{
+    domain: string;
+    enabled: boolean;
+    mode?: 'normal' | 'performance' | 'disabled';
+  }>;
+  limitElements: boolean;
+  disableRecursive: boolean;
+  showDebugInfo: boolean;
+  maxElementsNormal: number;
+  maxElementsPerformance: number;
+}
 
-// Vérifier si on doit s'exécuter sur ce site
-if (EXCLUDED_SITES.some(site => window.location.hostname.includes(site))) {
-  console.log('Ollama Corrector: Désactivé sur ce site pour éviter les conflits');
-  // Exporter une fonction vide pour éviter les erreurs
-  (window as any).__ollamaExtensionDisabled = true;
-} else {
+// Paramètres par défaut
+let extensionSettings: ExtensionSettings = {
+  globalMode: 'normal',
+  sites: [],
+  limitElements: true,
+  disableRecursive: true,
+  showDebugInfo: false,
+  maxElementsNormal: 30,
+  maxElementsPerformance: 10
+};
+
+// Variable pour savoir si l'extension est active
+let extensionEnabled = true;
+let currentMode: 'normal' | 'performance' | 'disabled' = 'normal';
+
+// Charger les paramètres
+async function loadExtensionSettings() {
+  try {
+    const stored = await chrome.storage.sync.get('extensionSettings');
+    if (stored.extensionSettings) {
+      extensionSettings = stored.extensionSettings;
+    }
+    
+    // Déterminer le mode pour ce site
+    const hostname = window.location.hostname;
+    const siteConfig = extensionSettings.sites.find(site => hostname.includes(site.domain));
+    
+    if (siteConfig) {
+      if (siteConfig.mode === 'disabled' || !siteConfig.enabled) {
+        extensionEnabled = false;
+        currentMode = 'disabled';
+        console.log('Ollama Corrector: Désactivé pour ce site par l\'utilisateur');
+        return;
+      }
+      currentMode = siteConfig.mode || 'normal';
+    } else {
+      currentMode = extensionSettings.globalMode;
+    }
+    
+    // Mode intelligent : détecter la complexité du site
+    if (currentMode === 'smart') {
+      const editableCount = document.querySelectorAll('input, textarea, [contenteditable]').length;
+      if (editableCount > 50) {
+        currentMode = 'performance';
+        console.log('Ollama Corrector: Mode performance activé (site complexe détecté)');
+      } else {
+        currentMode = 'normal';
+      }
+    }
+    
+    if (extensionSettings.showDebugInfo) {
+      console.log('Ollama Corrector: Mode', currentMode, 'sur', hostname);
+    }
+  } catch (error) {
+    console.error('Erreur lors du chargement des paramètres:', error);
+  }
+}
+
+// Écouter les changements de paramètres
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'settings-updated') {
+    extensionSettings = message.settings;
+    // Recharger la page pour appliquer les nouveaux paramètres
+    window.location.reload();
+  }
+});
+
+// Initialiser l'extension de manière asynchrone
+loadExtensionSettings().then(() => {
+  if (extensionEnabled) {
 
 interface EditableElement {
   element: HTMLElement;
@@ -1243,8 +1306,17 @@ function handleKeyDown(state: InputState, event: KeyboardEvent) {
 }
 
 // Limite du nombre d'éléments à observer pour éviter les problèmes de performance
-const MAX_ELEMENTS_TO_OBSERVE = 30;
+let MAX_ELEMENTS_TO_OBSERVE = 30;
 let observedElementsCount = 0;
+
+// Mettre à jour la limite selon le mode
+function updateElementLimit() {
+  if (currentMode === 'performance') {
+    MAX_ELEMENTS_TO_OBSERVE = extensionSettings.maxElementsPerformance || 10;
+  } else {
+    MAX_ELEMENTS_TO_OBSERVE = extensionSettings.maxElementsNormal || 30;
+  }
+}
 
 // Observer tous les éléments éditables
 function observeAllEditableElements() {
@@ -1861,8 +1933,7 @@ setInterval(() => {
 if (!isExtensionValid()) {
   console.log('Extension non valide au démarrage - Abandon');
 } else {
-  // Démarrer l'observation
-  observeAllEditableElements();
+  // Démarrer le MutationObserver (l'observation des éléments se fera après le chargement des paramètres)
   mutationObserver.observe(document.body, {
     childList: true,
     subtree: true,
@@ -1885,4 +1956,11 @@ const reobserveInterval = setInterval(() => {
 }, 2000);
 */
 
-} // Fin du bloc conditionnel pour les sites exclus
+// Mettre à jour la limite d'éléments
+updateElementLimit();
+
+// Observer les éléments initiaux
+observeAllEditableElements();
+
+  } // Fin du bloc if (extensionEnabled)
+}); // Fin de loadExtensionSettings().then()

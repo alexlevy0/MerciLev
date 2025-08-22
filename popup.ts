@@ -166,6 +166,12 @@ async function changeModel() {
 testButton.addEventListener('click', testConnection);
 modelSelect.addEventListener('change', changeModel);
 
+// Bouton options
+const optionsButton = document.getElementById('optionsButton');
+optionsButton?.addEventListener('click', () => {
+  chrome.runtime.openOptionsPage();
+});
+
 // Charger le statut et le modèle au démarrage
 loadStatus();
 loadCurrentModel();

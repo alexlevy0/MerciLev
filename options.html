@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Options - Correcteur Français Ollama</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      margin-top: 0;
+      color: #2563eb;
+      font-size: 28px;
+    }
+    
+    h2 {
+      color: #4b5563;
+      font-size: 20px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f9fafb;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .site-list {
+      margin: 15px 0;
+    }
+    
+    .site-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 15px;
+      margin: 5px 0;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      transition: all 0.2s;
+    }
+    
+    .site-item:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .site-name {
+      font-weight: 500;
+      color: #374151;
+    }
+    
+    .site-status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .toggle {
+      position: relative;
+      width: 50px;
+      height: 24px;
+      background: #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    
+    .toggle.active {
+      background: #3b82f6;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+    
+    .toggle.active .toggle-slider {
+      transform: translateX(26px);
+    }
+    
+    .add-site {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 15px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    button {
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    button:hover {
+      background: #2563eb;
+    }
+    
+    button:active {
+      transform: translateY(1px);
+    }
+    
+    .mode-section {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .mode-option {
+      flex: 1;
+      min-width: 200px;
+      padding: 15px;
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .mode-option:hover {
+      border-color: #3b82f6;
+    }
+    
+    .mode-option.selected {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    
+    .mode-title {
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 5px;
+    }
+    
+    .mode-description {
+      font-size: 14px;
+      color: #6b7280;
+    }
+    
+    .save-status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 15px 25px;
+      background: #10b981;
+      color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      display: none;
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateY(100px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    .info-box {
+      padding: 15px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #92400e;
+    }
+    
+    .reset-button {
+      background: #ef4444;
+      margin-top: 20px;
+    }
+    
+    .reset-button:hover {
+      background: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Options - Correcteur Français Ollama</h1>
+    
+    <div class="info-box">
+      ℹ️ L'extension peut ralentir certains sites complexes. Vous pouvez choisir comment elle se comporte sur chaque site.
+    </div>
+
+    <div class="section">
+      <h2>🌐 Mode de fonctionnement global</h2>
+      <div class="mode-section">
+        <div class="mode-option" data-mode="normal">
+          <div class="mode-title">Normal</div>
+          <div class="mode-description">Fonctionne sur tous les sites sauf ceux désactivés</div>
+        </div>
+        <div class="mode-option" data-mode="performance">
+          <div class="mode-title">Performance</div>
+          <div class="mode-description">Mode léger, observe moins d'éléments (max 10)</div>
+        </div>
+        <div class="mode-option" data-mode="smart">
+          <div class="mode-title">Intelligent</div>
+          <div class="mode-description">S'adapte automatiquement selon la complexité du site</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🚫 Sites avec comportement personnalisé</h2>
+      <div id="siteList" class="site-list">
+        <!-- Sites seront ajoutés dynamiquement -->
+      </div>
+      
+      <div class="add-site">
+        <input type="text" id="newSite" placeholder="Ajouter un domaine (ex: example.com)">
+        <button id="addSiteBtn">Ajouter</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⚡ Options de performance</h2>
+      <label style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
+        <input type="checkbox" id="limitElements" style="width: 18px; height: 18px;">
+        <span>Limiter le nombre d'éléments observés</span>
+      </label>
+      
+      <label style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
+        <input type="checkbox" id="disableRecursive" style="width: 18px; height: 18px;">
+        <span>Désactiver l'observation récursive (recommandé pour performance)</span>
+      </label>
+      
+      <label style="display: flex; align-items: center; gap: 10px; margin: 10px 0;">
+        <input type="checkbox" id="showDebugInfo" style="width: 18px; height: 18px;">
+        <span>Afficher les informations de debug dans la console</span>
+      </label>
+    </div>
+
+    <button class="reset-button" id="resetBtn">🔄 Réinitialiser tous les paramètres</button>
+  </div>
+
+  <div class="save-status" id="saveStatus">✓ Paramètres sauvegardés</div>
+
+  <script src="options.js"></script>
+</body>
+</html>
