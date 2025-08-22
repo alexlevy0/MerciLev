@@ -1,4 +1,28 @@
 // FICHIER: content.ts
+
+// Sites exclus pour éviter les conflits et les crashes
+const EXCLUDED_SITES = [
+  'slack.com',
+  'discord.com',
+  'messenger.com',
+  'facebook.com',
+  'teams.microsoft.com',
+  'notion.so',
+  'figma.com',
+  'docs.google.com',
+  'sheets.google.com',
+  'mail.google.com',
+  'outlook.office.com',
+  'outlook.live.com'
+];
+
+// Vérifier si on doit s'exécuter sur ce site
+if (EXCLUDED_SITES.some(site => window.location.hostname.includes(site))) {
+  console.log('Ollama Corrector: Désactivé sur ce site pour éviter les conflits');
+  // Exporter une fonction vide pour éviter les erreurs
+  (window as any).__ollamaExtensionDisabled = true;
+} else {
+
 interface EditableElement {
   element: HTMLElement;
   type: 'input' | 'textarea' | 'contenteditable' | 'canvas' | 'custom';
@@ -84,7 +108,9 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
   // Toujours ajouter l'indicateur au body en position fixed en bas à droite
   document.body.appendChild(indicator);
   
-  // Forcer l'indicateur à rester au-dessus de tout
+  // Forcer l'indicateur à rester au-dessus de tout - DÉSACTIVÉ
+  // Trop agressif, peut causer des problèmes de performance
+  /*
   setInterval(() => {
     if (indicator.parentElement !== document.body) {
       document.body.appendChild(indicator);
@@ -92,6 +118,7 @@ function createStatusIndicator(wrapper: EditableElement): HTMLDivElement {
     // S'assurer qu'il reste au z-index maximum
     indicator.style.zIndex = '2147483647';
   }, 1000);
+  */
   
   return indicator;
 }
@@ -1215,6 +1242,10 @@ function handleKeyDown(state: InputState, event: KeyboardEvent) {
   // Autocomplétion supprimée - ces touches ne font plus rien de spécial
 }
 
+// Limite du nombre d'éléments à observer pour éviter les problèmes de performance
+const MAX_ELEMENTS_TO_OBSERVE = 30;
+let observedElementsCount = 0;
+
 // Observer tous les éléments éditables
 function observeAllEditableElements() {
   // Vérifier si l'extension est valide
@@ -1222,16 +1253,30 @@ function observeAllEditableElements() {
     return;
   }
   
+  observedElementsCount = 0; // Réinitialiser le compteur
+  
   // Inputs et textareas standards
   const standardInputs = document.querySelectorAll('input[type="text"], input[type="search"], input[type="email"], input:not([type]), textarea');
-  standardInputs.forEach(element => observeEditableElement(element as HTMLElement));
+  standardInputs.forEach(element => {
+    if (observedElementsCount >= MAX_ELEMENTS_TO_OBSERVE) {
+      console.log('Ollama Corrector: Limite d\'éléments atteinte');
+      return;
+    }
+    observeEditableElement(element as HTMLElement);
+    observedElementsCount++;
+  });
   
   // Éléments contenteditable et leurs descendants
   const contentEditables = document.querySelectorAll('[contenteditable="true"], [contenteditable=""]');
   contentEditables.forEach(element => {
+    if (observedElementsCount >= MAX_ELEMENTS_TO_OBSERVE) return;
     observeEditableElement(element as HTMLElement);
+    observedElementsCount++;
     
-    // Observer récursivement tous les éléments enfants éditables
+    // Observer récursivement tous les éléments enfants éditables - LIMITÉ pour performance
+    // On n'observe que le contenteditable principal, pas tous ses enfants
+    // Cela évite les problèmes sur les sites complexes comme Slack
+    /*
     const walkEditableTree = (node: Element) => {
       // Observer les éléments de texte (p, div, span, etc.)
       if (node.nodeType === Node.ELEMENT_NODE && 
@@ -1249,6 +1294,7 @@ function observeAllEditableElements() {
     };
     
     walkEditableTree(element);
+    */
   });
   
   // Éléments avec role="textbox"
@@ -1278,7 +1324,9 @@ const mutationObserver = new MutationObserver((mutations) => {
           editables.forEach(child => {
             observeEditableElement(child as HTMLElement);
             
-            // Pour contenteditable, observer aussi tous les descendants
+            // Pour contenteditable, observer aussi tous les descendants - DÉSACTIVÉ
+            // Trop agressif pour les sites complexes
+            /*
             if (child.hasAttribute('contenteditable')) {
               const walkDescendants = (parent: Element) => {
                 parent.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li').forEach(desc => {
@@ -1287,6 +1335,7 @@ const mutationObserver = new MutationObserver((mutations) => {
               };
               walkDescendants(child);
             }
+            */
           });
         }
       });
@@ -1823,6 +1872,9 @@ if (!isExtensionValid()) {
 }
 
 // Réobserver périodiquement pour les éléments créés dynamiquement
+// DÉSACTIVÉ - Trop agressif, cause des problèmes de performance
+// Le MutationObserver gère déjà les nouveaux éléments
+/*
 const reobserveInterval = setInterval(() => {
   if (!isExtensionValid()) {
     console.log('Extension invalidée - Arrêt de la réobservation');
@@ -1831,3 +1883,6 @@ const reobserveInterval = setInterval(() => {
   }
   observeAllEditableElements();
 }, 2000);
+*/
+
+} // Fin du bloc conditionnel pour les sites exclus
