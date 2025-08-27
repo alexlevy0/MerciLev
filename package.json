@@ -1,0 +1,19 @@
+{
+  "name": "groq-chrome-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension using Groq API for AI assistance",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chrome-extension",
+    "groq",
+    "ai",
+    "chatbot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

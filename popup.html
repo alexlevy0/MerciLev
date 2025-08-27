@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Groq AI Assistant</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Groq AI Assistant</h2>
+    
+    <!-- Configuration de l'API Key -->
+    <div id="apiKeySection" class="section">
+      <h3>Configuration</h3>
+      <div class="api-key-input">
+        <input type="password" id="apiKeyInput" placeholder="Entrez votre clé API Groq" />
+        <button id="saveApiKey">Sauvegarder</button>
+      </div>
+      <div id="apiKeyStatus" class="status-message"></div>
+    </div>
+    
+    <!-- Sélection du modèle -->
+    <div class="section">
+      <label for="modelSelect">Modèle :</label>
+      <select id="modelSelect">
+        <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+        <option value="llama2-70b-4096">LLaMA2 70B</option>
+        <option value="gemma-7b-it">Gemma 7B</option>
+        <option value="llama3-70b-8192">LLaMA3 70B</option>
+        <option value="llama3-8b-8192">LLaMA3 8B</option>
+      </select>
+    </div>
+    
+    <!-- Zone de chat -->
+    <div class="chat-container">
+      <div id="chatMessages" class="chat-messages"></div>
+      
+      <div class="input-container">
+        <textarea id="messageInput" placeholder="Tapez votre message..." rows="3"></textarea>
+        <button id="sendButton">Envoyer</button>
+      </div>
+    </div>
+    
+    <!-- Indicateur de chargement -->
+    <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+      <div class="spinner"></div>
+      <span>En cours de traitement...</span>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
