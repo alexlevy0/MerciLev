@@ -1,0 +1,5 @@
+# Dépendances pour utiliser Groq API en remplacement d'Ollama
+groq==0.4.2
+python-dotenv==1.0.0
+requests==2.31.0
+typing-extensions==4.9.0
